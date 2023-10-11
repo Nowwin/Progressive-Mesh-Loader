@@ -1,0 +1,360 @@
+// C++ Standard Libraries
+#include <iostream>
+#include <vector>
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <filesystem>
+
+// Third Party
+#if defined(LINUX) || defined(MINGW)
+    #include <SDL2/SDL.h>
+#else // This works for Mac
+    #include <SDL.h>
+#endif
+
+//Third Party
+#include <glad/glad.h>
+#include <glm/vec3.hpp> // glm::vec3
+#include <glm/vec4.hpp> // glm::vec4
+#include <glm/mat4x4.hpp> // glm::mat4
+#include <glm/ext/matrix_transform.hpp> // glm::translate, glm::rotate, glm::scale
+#include <glm/ext/matrix_clip_space.hpp> // glm::perspective
+#include <glm/ext/scalar_constants.hpp> // glm::pi
+
+//Globals
+int gScreenHeight = 480;
+int gScreenWidth = 640;
+SDL_Window* gGraphicsApplicationWindow = nullptr;
+SDL_GLContext gOpenGlContext = nullptr;
+
+bool gQuit = false;
+
+GLuint gVertexArrayObject = 0;
+GLuint gVertexBufferObject = 0;
+GLuint gIndexBufferObject = 0;
+GLuint gGraphicsPipelineShaderProgram = 0;
+
+float gUOffset = -2.0f;
+float gURotation = 0.0f;
+
+//Error Handling
+
+static void GLClearAllErrors() {
+    while (glGetError() != GL_NO_ERROR)
+    {
+        /* code */
+    }    
+}
+
+static bool GLCheckErrorStatus(const char* function, int line) {
+    while (GLenum error = glGetError())
+    {
+        std::cout << "OpenGL Error: " << error << "\tLine: " << line
+        << "\tFunction: " << function << std::endl;
+        return true;
+    }
+
+    return false;
+    
+}
+
+#define GLCheck(x) GLClearAllErrors(); x; GLCheckErrorStatus(#x, __LINE__);
+
+//Error Handling end
+
+
+void GetOpenGLVersionInfo() {
+    std::cout << "Vendor: " << glGetString(GL_VENDOR) << std::endl;
+    std::cout << "Renderer: " << glGetString(GL_RENDERER) << std::endl;
+    std::cout << "Version: " << glGetString(GL_VERSION) << std::endl;
+    std::cout << "Shading Language: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
+}
+
+void IntializeProgram() {
+
+    std::cout << std::filesystem::current_path().string() << std::endl; 
+
+    if (SDL_Init(SDL_INIT_VIDEO) < 0)
+    {
+        std::cout << "SDL did not initiliaze" << std::endl;
+        exit(1);
+    }
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+
+    gGraphicsApplicationWindow = SDL_CreateWindow(
+        "SDL2 Window",               // window title
+        0,      // x position, centered
+        0,      // y position, centered
+        gScreenWidth,                         // width, in pixels
+        gScreenHeight,                         // height, in pixels
+        SDL_WINDOW_OPENGL             // flags
+    );
+
+    if (gGraphicsApplicationWindow == nullptr)
+    {
+        std::cout << "Window did not setup" << std::endl;
+        exit(1);
+    }
+
+    gOpenGlContext = SDL_GL_CreateContext(gGraphicsApplicationWindow);
+
+    if (gOpenGlContext == nullptr)
+    {
+        std::cout << "Graphics did not load" << std::endl;
+        exit(1);
+    }
+    
+    if (!gladLoadGLLoader(SDL_GL_GetProcAddress))
+    {
+        std::cout << "glad was not initialized" << std::endl;
+        exit(1);
+    }
+
+    GetOpenGLVersionInfo();
+    
+}
+
+std::string LoadShaderAsString(const std::string& filename) {
+    std::string result = "";
+
+    std::string line = "";
+    std::ifstream myFile(filename.c_str());
+
+    if (myFile.is_open())
+    {
+        while (std::getline(myFile, line))
+        {
+            result += line + '\n';
+        }
+        myFile.close();   
+    }
+
+    
+
+    return result;
+    
+}
+
+
+
+
+void VertexSpecification() {
+    const std::vector<GLfloat> vertexData{
+        //0 Vertex
+        -0.5f, -0.5f, 0.0f, //Left Pos
+        1.0f, 0.0f, 0.0f, //Left Color
+        //1 Vertex
+        0.5f, -0.5f, 0.0f, //Right Pos
+        0.0f, 1.0f, 0.0f, //Right Color
+        //2 Vertex
+        -0.5f, 0.5f, 0.0f, //Top Pos
+        0.0f, 0.0f, 1.0f, //Top Color
+        //3 Vertex
+        0.5f, 0.5f, 0.0f, //Top Pos
+        0.0f, 0.0f, 1.0f, //Top Color                     
+    };
+
+  
+
+    glGenVertexArrays(1, &gVertexArrayObject);
+    //Selecting
+    glBindVertexArray(gVertexArrayObject);
+
+    glGenBuffers(1, &gVertexBufferObject);
+    glBindBuffer(GL_ARRAY_BUFFER, gVertexBufferObject);
+    glBufferData(GL_ARRAY_BUFFER, vertexData.size() * sizeof(GLfloat), vertexData.data(), GL_STATIC_DRAW);
+
+   
+
+    const std::vector<GLuint> indexBufferData {2, 0, 1, 3, 2, 1};
+    glGenBuffers(1, &gIndexBufferObject);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIndexBufferObject);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexBufferData.size() * sizeof(GLuint), indexBufferData.data(), GL_STATIC_DRAW);
+
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GL_FLOAT) * 6, (void*)0);
+    
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(GL_FLOAT) * 6, (GLvoid*)(sizeof(GL_FLOAT)*3));
+
+    glBindVertexArray(0);    
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+    
+}
+
+GLuint CompileShader(GLuint type, const std::string &source) {
+    
+    GLuint shaderPbject;
+    
+    if (type == GL_VERTEX_SHADER)
+    {
+        shaderPbject = glCreateShader(GL_VERTEX_SHADER);
+    } else if(type == GL_FRAGMENT_SHADER) {
+        shaderPbject = glCreateShader(GL_FRAGMENT_SHADER);
+    }
+
+    const char* src = source.c_str();
+    glShaderSource(shaderPbject, 1, &src, nullptr);
+    glCompileShader(shaderPbject);
+
+    return shaderPbject;
+    
+}
+
+GLuint CreateShaderProgram(const std::string &vertexshadersource, const std::string &fragmentshadersource) {
+    GLuint programObject = glCreateProgram();
+
+    GLuint myVertexShader = CompileShader(GL_VERTEX_SHADER, vertexshadersource);
+    GLuint myFragmentShader = CompileShader(GL_FRAGMENT_SHADER, fragmentshadersource);
+
+    glAttachShader(programObject, myVertexShader);
+    glAttachShader(programObject, myFragmentShader);
+    glLinkProgram(programObject);
+
+    //Validation
+    glValidateProgram(programObject);
+
+    return programObject;
+}
+
+void CreateGraphicsPipeline() {
+    std::string vertexShaderSource = LoadShaderAsString(std::filesystem::current_path().string() + "/shaders/vert.glsl");
+    std::string fragmentShaderSource = LoadShaderAsString(std::filesystem::current_path().string() + "/shaders/frag.glsl");
+    gGraphicsPipelineShaderProgram = CreateShaderProgram(vertexShaderSource, fragmentShaderSource);
+}
+
+
+
+void Input(){
+    SDL_Event event;
+
+    // (1) Handle Input
+    // Start our event loop
+    while(SDL_PollEvent(&event)){
+        // Handle each specific event
+        if(event.type == SDL_QUIT){
+            gQuit= true;
+        }
+
+        const Uint8 *state = SDL_GetKeyboardState(NULL);
+        if (state[SDL_SCANCODE_UP])
+        {
+            gUOffset += 0.01f;
+            std::cout << "Offset: " << gUOffset << std::endl;
+        }
+
+        if (state[SDL_SCANCODE_DOWN])
+        {
+            gUOffset -= 0.01f;
+            std::cout << "Offset: " << gUOffset << std::endl;
+        }
+        
+        if (state[SDL_SCANCODE_LEFT])
+        {
+            gURotation -= 1.00f;
+            std::cout << "Rotation: " << gURotation << std::endl;
+        }
+
+        if (state[SDL_SCANCODE_RIGHT])
+        {
+            gURotation += 1.00f;
+            std::cout << "Rotation: " << gURotation << std::endl;
+        }
+        
+    }
+}
+
+void PreDraw() {
+    //Setting opengl state
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);
+    glViewport(0, 0, gScreenWidth, gScreenHeight);
+    glClearColor(1.f, 1.f, 0.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glUseProgram(gGraphicsPipelineShaderProgram);
+
+    //Translation
+
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, gUOffset));
+
+    GLint u_modelMatrixLocation = glGetUniformLocation(gGraphicsPipelineShaderProgram, "u_ModelMatrix");
+
+    //Rotation
+
+    model = glm::rotate(model, glm::radians(gURotation), glm::vec3(0.0f, 1.0f, 0.0f));
+
+    if (u_modelMatrixLocation >= 0)
+    {
+        glUniformMatrix4fv(u_modelMatrixLocation, 1, GL_FALSE, &model[0][0]);
+    } else {
+        std::cout << "No location found" << std::endl;
+    }
+
+    //Perspective
+
+    glm::mat4 perspective = glm::perspective(glm::radians(45.0f), (float)gScreenWidth/(float)gScreenHeight, 0.1f, 10.0f);
+
+    GLint u_perspectiveLocation = glGetUniformLocation(gGraphicsPipelineShaderProgram, "u_PerspectiveMatrix");
+
+    if (u_perspectiveLocation >= 0)
+    {
+        glUniformMatrix4fv(u_perspectiveLocation, 1, GL_FALSE, &perspective[0][0]);
+    } else {
+        std::cout << "No location found" << std::endl;
+    }
+    
+}
+
+void Draw() {
+
+    glBindVertexArray(gVertexArrayObject);
+    glBindBuffer(GL_ARRAY_BUFFER, gVertexBufferObject);
+
+    //glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    
+
+}
+
+void MainLoop() {
+    while (!gQuit)
+    {
+        Input();
+
+        PreDraw();
+
+        Draw();
+
+        SDL_GL_SwapWindow(gGraphicsApplicationWindow);
+    }
+    
+}
+
+void CleanUp() {
+    SDL_DestroyWindow(gGraphicsApplicationWindow);
+    SDL_Quit();
+}
+
+int main() {
+    IntializeProgram();
+
+    VertexSpecification();
+
+    CreateGraphicsPipeline();
+
+    MainLoop();
+
+    CleanUp();
+
+    return 0;
+}

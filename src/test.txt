@@ -1,0 +1,11 @@
+//This is test file to test any block of code
+
+// clang++ -std=c++20 -o output test.cpp Object.cpp -I ./include/ -I ./include/glm-master/
+
+#include "Object.hpp"
+
+int main() {
+    Object o("./ObjFiles/ver1.obj");
+
+    return 0;
+}
