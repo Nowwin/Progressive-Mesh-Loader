@@ -24,6 +24,28 @@ HalfEdge* Simplification::FindBoundaryEdgeIncidentToVertexInCW(HalfEdge *baseHal
     return baseHalfEdge;
 }
 
+void Simplification::FindNeighborHalfEdge(VertexIter &v1, std::vector<FaceIter> &facesOriginallyIncidentToV0OrV1)
+{
+    // Loop through the list of faces originally incident to either v0 or v1
+    for(auto &face : facesOriginallyIncidentToV0OrV1)
+    {
+        // If the face is still active
+        if(face->isActive)
+        {
+            // Loop through the half-edges of the face
+            for(int j = 0; j < 3; j++)
+            {
+                // If the vertex associated with the current half-edge is v1
+                if(face->halfedge[j].vertex == v1) 
+                {
+                    // Set the neighbor half-edge of v1
+                    v1->neighborHe = &(face->halfedge[j]);
+                    return; // Exit once found
+                }
+            }
+        }
+    }
+}
 
 
 //Calculation of quad Error
