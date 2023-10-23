@@ -96,9 +96,11 @@ struct Face {
 
 class Mesh {
 protected:
-
+    //Reads from an OBJ file - ignores texture and normals
     bool ReadOBJFile(char *filename);
+    
     void AddEdgeInfo();
+    //Setups the halfedge data for a face
     void MakeCircularList(FaceIter &fi);
 
 public:

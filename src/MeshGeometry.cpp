@@ -74,3 +74,18 @@ bool Mesh::ReadOBJFile(char *filename)
 
     return true;
 }
+
+void Mesh::MakeCircularList(FaceIter &fi)
+{
+    fi->halfedge[0].next = &(fi->halfedge[1]);
+    fi->halfedge[1].next = &(fi->halfedge[2]);
+    fi->halfedge[2].next = &(fi->halfedge[0]);
+
+    fi->halfedge[0].prev = &(fi->halfedge[2]);
+    fi->halfedge[1].prev = &(fi->halfedge[0]);
+    fi->halfedge[2].prev = &(fi->halfedge[1]);
+}
+
+void Mesh::AddEdgeInfo() {
+
+}
