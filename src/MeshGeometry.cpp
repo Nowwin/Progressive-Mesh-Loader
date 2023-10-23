@@ -87,5 +87,78 @@ void Mesh::MakeCircularList(FaceIter &fi)
 }
 
 void Mesh::AddEdgeInfo() {
+    // Store face iterators incident to each vertex
+    std::vector<std::vector<FaceIter>> Ring(n_vertices);
 
+    for (FaceIter fi = faces.begin(); fi != faces.end(); fi++) {
+        // construct circular list
+        MakeCircularList(fi);
+
+        for (int i = 0; i < 3; i++) {
+            fi->halfedge[i].face = fi;
+            fi->halfedge[i].vertex->neighborHe = &(fi->halfedge[i]);
+
+            Ring[fi->halfedge[i].vertex->id].push_back(fi);
+        }
+    }
+
+    std::cerr << "Halfedges are set\n";
+
+    // Construct mates of halfedge
+    for (size_t i = 0; i < Ring.size(); i++) { // For each vertex
+        for (size_t j = 0; j < Ring[i].size(); j++) {
+            HalfEdge* candidate_he;
+            VertexIter candidate_vertex;
+
+            for (int m = 0; m < 3; m++) {
+                if (Ring[i][j]->halfedge[m].vertex->id == i) {
+                    candidate_he = &(Ring[i][j]->halfedge[m]);
+                    candidate_vertex = Ring[i][j]->halfedge[m].next->vertex;
+                    break;
+                }
+            }
+
+            for (size_t k = 0; k < Ring[i].size(); k++) {
+                if (j == k) continue;
+
+                for (int m = 0; m < 3; m++) {
+                    if (Ring[i][k]->halfedge[m].vertex == candidate_vertex && 
+                        Ring[i][k]->halfedge[m].next->vertex->id == i) {
+                        candidate_he->mate = &(Ring[i][k]->halfedge[m]);
+                        Ring[i][k]->halfedge[m].mate = candidate_he;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    std::cerr << "Halfedge mates are set\n";
+
+    // Add edge information
+    for (FaceIter fi = faces.begin(); fi != faces.end(); fi++) {
+        for (int i = 0; i < 3; i++) {
+            if (fi->halfedge[i].mate == nullptr || 
+                fi->halfedge[i].vertex->id < fi->halfedge[i].mate->vertex->id) {
+                edges.push_back(Edge(&(fi->halfedge[i]), fi->halfedge[i].mate, n_edges++));
+            }
+            if (fi->halfedge[i].mate == nullptr) 
+                fi->halfedge[i].vertex->isBoundary = true;
+        }
+    }
+
+    std::cerr << "Edges are set\n";
+
+    // Construct link from halfedge to the corresponding edge
+    for (EdgeIter ei = edges.begin(); ei != edges.end(); ei++) {
+        ei->halfedge[0]->edge = ei;
+        if (ei->halfedge[1] != nullptr) ei->halfedge[1]->edge = ei;
+    }
+
+    std::cerr << "# of edges " << n_edges << std::endl;
+
+    for (FaceIter fi = faces.begin(); fi != faces.end(); fi++) 
+        AssignFaceNormal(fi);
+    for (VertexIter vi = vertices.begin(); vi != vertices.end(); vi++) 
+        AssignVertexNormal(vi);
 }
