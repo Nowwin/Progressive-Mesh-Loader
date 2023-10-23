@@ -98,7 +98,7 @@ class Mesh {
 protected:
     //Reads from an OBJ file - ignores texture and normals
     bool ReadOBJFile(char *filename);
-    
+    //Setups half edge and associated face, edge, vertex
     void AddEdgeInfo();
     //Setups the halfedge data for a face
     void MakeCircularList(FaceIter &fi);
@@ -116,9 +116,11 @@ public:
         n_vertices = n_faces = n_edges = 0;
     }
 
+    //Begins the construction of Mesh
     bool ConstructMeshDataStructure(char *filename);
+    //Calculates Face Normal
     void AssignFaceNormal(FaceIter &fi);
+    //Calulcate Vertex Normal
     void AssignVertexNormal(VertexIter &vi);
-    void Display(int mode);
 
 };

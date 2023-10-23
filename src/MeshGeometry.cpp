@@ -1,4 +1,4 @@
-#include <MeshGeometry.hpp>
+#include "MeshGeometry.hpp"
 
 bool Mesh::ReadOBJFile(char *filename)
 {
@@ -86,6 +86,55 @@ void Mesh::MakeCircularList(FaceIter &fi)
     fi->halfedge[2].prev = &(fi->halfedge[1]);
 }
 
+void Mesh::AssignFaceNormal(FaceIter &fi) {
+    glm::vec3 vec1 = fi->halfedge[1].vertex->position_ - fi->halfedge[0].vertex->position_;
+    glm::vec3 vec2 = fi->halfedge[2].vertex->position_ - fi->halfedge[0].vertex->position_;
+
+    fi->normal_ = glm::cross(vec1, vec2); // Notice the underscore in normal_
+    fi->area = glm::length(fi->normal_) * 0.5f;  // Assuming area is half the length of the cross product
+    fi->normal_ = glm::normalize(fi->normal_);   // Notice the underscore in normal_
+}
+
+void Mesh::AssignVertexNormal(VertexIter &vi) {
+    bool isBoundaryVertex = false;
+
+    vi->normal_ = glm::vec3(0.0f, 0.0f, 0.0f);
+    double cumulativeArea = 0.0;
+
+    // Traverse faces incident to "vi" in CCW
+    HalfEdge* hep = vi->neighborHe;
+    do {
+        FaceIter fi = hep->face;
+
+        vi->normal_ += fi->normal_ * static_cast<float>(fi->area);
+        cumulativeArea += fi->area;
+
+        hep = hep->prev->mate;
+
+        if (hep == nullptr) {
+            isBoundaryVertex = true;
+            break;
+        }
+    } while (hep != vi->neighborHe);
+
+    // When we cannot traverse all incident faces since "vi" is on boundary
+    // we traverse faces incident to "vi" in CW to check all incident faces
+    if (isBoundaryVertex) {
+        HalfEdge* hep = vi->neighborHe->mate;
+        while (hep != nullptr) {
+            FaceIter fi = hep->face;
+
+            vi->normal_ += fi->normal_ * static_cast<float>(fi->area);
+            cumulativeArea += fi->area;
+
+            hep = hep->next->mate;
+        }
+    }
+
+    vi->normal_ *= (1.0 / cumulativeArea);
+}
+
+
 void Mesh::AddEdgeInfo() {
     // Store face iterators incident to each vertex
     std::vector<std::vector<FaceIter>> Ring(n_vertices);
@@ -161,4 +210,12 @@ void Mesh::AddEdgeInfo() {
         AssignFaceNormal(fi);
     for (VertexIter vi = vertices.begin(); vi != vertices.end(); vi++) 
         AssignVertexNormal(vi);
+}
+
+bool Mesh::ConstructMeshDataStructure(char *filename)
+{
+    if( ReadOBJFile(filename) == false ) return false;
+    AddEdgeInfo();
+
+    return true;
 }
