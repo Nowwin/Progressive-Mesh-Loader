@@ -62,7 +62,7 @@ struct Vertex {
     bool isBoundary;
     bool isActive;
 
-    double QuadError[10]; //This represents the Quad error, all the constants of matrix
+    float QuadError[10]; //This represents the Quad error, all the constants of matrix
 
     Vertex(){};
     Vertex(const glm::vec3& position, int n) : position_(position), id(n) {

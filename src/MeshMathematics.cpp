@@ -9,9 +9,9 @@ bool operator>(const EdgeCollapseTarget &a, const EdgeCollapseTarget &b){
 
 //Calculation of quad Error
 void Simplification::CumulateQ(VertexIter &vi, const glm::vec3 &normal, double d) {
-    double a = normal.x;
-    double b = normal.y;
-    double c = normal.z;
+    float a = normal.x;
+    float b = normal.y;
+    float c = normal.z;
 
     vi->QuadError[0] += a * a;
     vi->QuadError[1] += a * b;
