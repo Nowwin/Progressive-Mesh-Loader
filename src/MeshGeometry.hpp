@@ -1,6 +1,9 @@
 #pragma once
 
+#include<iostream>
+#include<vector>
 #include <list>
+
 #include "glad/glad.h"
 #include "glm/glm.hpp"
 
@@ -94,7 +97,7 @@ struct Face {
 class Mesh {
 protected:
 
-    bool ReadFile(char *filename);
+    bool ReadOBJFile(char *filename);
     void AddEdgeInfo();
     void MakeCircularList(FaceIter &fi);
 
