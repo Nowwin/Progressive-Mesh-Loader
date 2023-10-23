@@ -7,6 +7,25 @@ bool operator>(const EdgeCollapseTarget &a, const EdgeCollapseTarget &b){
     return a.cost > b.cost;
 }
 
+HalfEdge* Simplification::FindBoundaryEdgeIncidentToVertexInCW(HalfEdge *baseHalfEdge)
+{
+    // Try to find a boundary edge by checking incident edges in CW direction
+    HalfEdge *hep = baseHalfEdge;
+    do {
+        // If the current half-edge doesn't have a mate, it's a boundary
+        if (hep->mate == nullptr) return hep;
+
+        // Move to the next half-edge in the CW direction
+        hep = hep->mate->next;
+    } while (hep != baseHalfEdge);
+
+    // Returning the baseHalfEdge if no boundary edge is found.
+    // Ideally, this shouldn't happen if the input is guaranteed to have a boundary edge.
+    return baseHalfEdge;
+}
+
+
+
 //Calculation of quad Error
 void Simplification::CumulateQ(VertexIter &vi, const glm::vec3 &normal, double d) {
     float a = normal.x;
@@ -24,3 +43,60 @@ void Simplification::CumulateQ(VertexIter &vi, const glm::vec3 &normal, double d
     vi->QuadError[8] += c * d;
     vi->QuadError[9] += d * d;
 }
+
+void Simplification::AssignInitialQ() {
+    for(VertexIter vi = mesh->vertices.begin(); vi != mesh->vertices.end(); vi++) {
+
+        for(int i = 0; i < 10; i++) vi->QuadError[i] = 0.0f;
+
+        HalfEdge* startHalfEdge;
+        HalfEdge* endHalfEdge;
+
+        if(!vi->isBoundary) 
+            startHalfEdge = vi->neighborHe;
+        else                        
+            startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(vi->neighborHe);
+
+        HalfEdge* hep = startHalfEdge;
+        do {
+            CumulateQ(vi, hep->face->normal_, -glm::dot(hep->face->normal_, hep->face->halfedge[0].vertex->position_));
+
+            if(vi->isBoundary && hep->prev->mate == NULL) {
+                endHalfEdge = hep->prev;
+                break;
+            }
+
+            hep = hep->prev->mate;
+        } while(hep != startHalfEdge && hep != NULL);
+
+        if(vi->isBoundary) {
+            // Add pseudo face information to vi->Q
+
+            glm::vec3 boundaryVector = startHalfEdge->next->vertex->position_ - startHalfEdge->vertex->position_;
+            glm::vec3 pseudoNormal = glm::cross(boundaryVector, startHalfEdge->face->normal_);
+            pseudoNormal = glm::normalize(pseudoNormal);
+
+            CumulateQ(vi, pseudoNormal, -glm::dot(pseudoNormal, startHalfEdge->vertex->position_));
+
+            boundaryVector = endHalfEdge->next->vertex->position_ - endHalfEdge->vertex->position_;
+            pseudoNormal = glm::cross(boundaryVector, endHalfEdge->face->normal_);
+            pseudoNormal = glm::normalize(pseudoNormal);
+
+            CumulateQ(vi, pseudoNormal, -glm::dot(pseudoNormal, endHalfEdge->vertex->position_));
+        }
+    }
+}
+
+void Simplification::InitSimplification(Mesh *mesh_in)
+{
+    mesh = mesh_in;
+
+    n_active_faces = mesh->n_faces;
+
+    AssignInitialQ();
+
+    for(EdgeIter ei = mesh->edges.begin(); ei != mesh->edges.end(); ++ei)
+        ComputeOptimalCoordAndCost(ei);
+}
+
+
