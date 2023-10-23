@@ -122,5 +122,9 @@ public:
     void AssignFaceNormal(FaceIter &fi);
     //Calulcate Vertex Normal
     void AssignVertexNormal(VertexIter &vi);
+    //Gets the vertex data
+    std::vector<GLfloat> GetVertexData();
+    //Get the EBO
+    std::vector<GLuint> GetIndexData();
 
 };

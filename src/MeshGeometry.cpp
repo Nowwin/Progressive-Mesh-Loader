@@ -219,3 +219,36 @@ bool Mesh::ConstructMeshDataStructure(char *filename)
 
     return true;
 }
+
+std::vector<GLfloat> Mesh::GetVertexData() {
+    std::vector<GLfloat> vertexData;
+    
+    // Iterate over each vertex in the mesh.
+    for (const Vertex& vertex : vertices) {
+        // Add vertex position data.
+        vertexData.push_back(vertex.position_.x);
+        vertexData.push_back(vertex.position_.y);
+        vertexData.push_back(vertex.position_.z);
+        
+        // Add vertex normal data.
+        vertexData.push_back(vertex.normal_.x);
+        vertexData.push_back(vertex.normal_.y);
+        vertexData.push_back(vertex.normal_.z);
+    }
+    
+    return vertexData;
+}
+
+std::vector<GLuint> Mesh::GetIndexData() {
+    std::vector<GLuint> indexData;
+    
+    // Iterate over each face in the mesh.
+    for (const Face& face : faces) {
+        // For each half-edge of the face, retrieve the corresponding vertex's id.
+        for (int i = 0; i < 3; i++) {
+            indexData.push_back(face.halfedge[i].vertex->id);
+        }
+    }
+    
+    return indexData;
+}

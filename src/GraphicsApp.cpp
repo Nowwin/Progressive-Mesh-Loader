@@ -1,9 +1,10 @@
 #include "GraphicsApp.hpp"
-#include "ShaderLoader.hpp"
-#include "Object.hpp"
+
 
 int GNumberOfVertices = 0;
 bool wireframeMode = false;
+
+Mesh bunny = Mesh();
 
 void GraphicsApp::GetOpenGLVersionInfo() {
     std::cout << "Vendor: " << glGetString(GL_VENDOR) << std::endl;
@@ -99,10 +100,10 @@ void GraphicsApp::VertexSpecification() {
         0.5f,  0.5f,  0.5f,
         -0.5f,  0.5f,  0.5f,                
     }; */
+    char filename[] = "./src/ObjFiles/ver1.obj";
+    bunny.ConstructMeshDataStructure(filename);
 
-    Object bunny("./src/ObjFiles/ver1.obj");
-
-    const std::vector<GLfloat> vertexData(bunny.vertices());
+    const std::vector<GLfloat> vertexData(bunny.GetVertexData());
 
     glGenVertexArrays(1, &gVertexArrayObject);
     //Selecting
@@ -114,7 +115,7 @@ void GraphicsApp::VertexSpecification() {
 
    
 
-    const std::vector<GLuint> indexBufferData(bunny.indices());
+    const std::vector<GLuint> indexBufferData(bunny.GetIndexData());
 
     GNumberOfVertices = indexBufferData.size();
                                                 

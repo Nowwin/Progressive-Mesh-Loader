@@ -13,6 +13,8 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/scalar_constants.hpp>
 
+#include "ShaderLoader.hpp"
+#include "MeshGeometry.hpp"
 
 class GraphicsApp {
 public:
