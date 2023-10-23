@@ -48,7 +48,7 @@ class Simplification {
     int n_active_faces;
 
     void AssignInitialQ();
-    void CumulateQ(VertexIter &vi, double *normal, double d);
+    void CumulateQ(VertexIter &vi, const glm::vec3 &normal, double d);
     void ComputeOptimalCoordAndCost(EdgeIter &ei);
     
     HalfEdge* FindBoundaryEdgeIncidentToVertexInCW(HalfEdge *baseHalfEdge);
