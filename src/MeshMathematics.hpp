@@ -1,39 +1,69 @@
 #pragma once
 
-#include <vector>
+#include <queue>
+#include <stack>
+#include <list>
 
 #include "glad/glad.h"
 #include "glm/glm.hpp"
 
-//Step1: Calculate the QEM using Quadratice Error
+#include "MeshGeometry.hpp"
 
-//Calculates the equation of plane
-glm::vec4 calculatePlane(const glm::vec3& v1, const glm::vec3& v2, const glm::vec3& v3) {
-    glm::vec3 vec1 = v2 - v1;
-    glm::vec3 vec2 = v3 - v1;
+struct EdgeCollapseTarget {
+    EdgeIter ei;
+    double cost;
+    double optimalCoord[3];
+    int id;
+
+    EdgeCollapseTarget(){}
+    EdgeCollapseTarget(EdgeIter &ei_in, double cost_in, double *optimalCoord_in, int id_in) {
+        ei   = ei_in;
+        cost = cost_in;
+        for(int i = 0; i < 3; i++) optimalCoord[i] = optimalCoord_in[i];
+        id   = id_in;
+    }
+};
+
+struct VertexSplitTarget {
+    EdgeIter ei;
+    glm::vec3 v1OriginalCoord;
+    bool     v1OriginalIsBoundary;
+    std::vector<HalfEdge*> halfedgesAroundV0;
+
+    int id;
+
+    VertexSplitTarget(){}
+};
+
+class Simplification {
+    Mesh *mesh;
+
+    std::priority_queue <EdgeCollapseTarget, std::deque<EdgeCollapseTarget>, std::greater<EdgeCollapseTarget>> heap;
+    std::list<EdgeCollapseTarget> suspendedEdgeCollapseTarget;
+
+    std::stack<VertexSplitTarget>  vertexSplitTarget;
+    std::stack<EdgeCollapseTarget> readdedEdgeCollapseTarget;
+
+    int ect_id_base;
+    int n_active_faces;
+
+    void AssignInitialQ();
+    void CumulateQ(VertexIter &vi, double *normal, double d);
+    void ComputeOptimalCoordAndCost(EdgeIter &ei);
     
-    glm::vec3 normal = glm::cross(vec1, vec2);
-    
-    normal = glm::normalize(normal);
-    float D = -glm::dot(normal, v1);
-    
-    return glm::vec4(normal, D);
-}
+    HalfEdge* FindBoundaryEdgeIncidentToVertexInCW(HalfEdge *baseHalfEdge);
+    void FindNeighborHalfEdge(VertexIter &v1, std::vector<FaceIter> &facesOriginallyIncidentToV0OrV1);
 
-//Calculates the Quadric of a plane
-glm::mat4 computeQuadric(const glm::vec4& planeEquation) {
-    float A = planeEquation.x;
-    float B = planeEquation.y;
-    float C = planeEquation.z;
-    float D = planeEquation.w;
+    bool IsFinWillNotBeCreated(EdgeIter &ei);
+    void RemoveEdge(EdgeIter &ei, double *optimalCoord, bool isFirstCollapse);
 
-    glm::mat4 quadric(
-        A * A, A * B, A * C, A * D,
-        A * B, B * B, B * C, B * D,
-        A * C, B * C, C * C, C * D,
-        A * D, B * D, C * D, D * D
-    );
+public:
+    Simplification(){ ect_id_base = 0; }
 
-    return quadric;
-}
+    void InitSimplification(Mesh *mesh_in);
+    bool EdgeCollapse();
+    void VertexSplit();
+    void ControlLevelOfDetail(int step);
+};
+
 
