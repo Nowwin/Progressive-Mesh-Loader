@@ -27,7 +27,7 @@ HalfEdge* Simplification::FindBoundaryEdgeIncidentToVertexInCW(HalfEdge *baseHal
     return baseHalfEdge;
 }
 
-//Calculation of quad Error
+//updation of quad Error for vertex
 void Simplification::CumulateQ(VertexIter &vi, const glm::vec3 &normal, double d) {
     float a = normal.x;
     float b = normal.y;
@@ -45,6 +45,49 @@ void Simplification::CumulateQ(VertexIter &vi, const glm::vec3 &normal, double d
     vi->QuadError[9] += d * d;
 }
 
+//Creates the Quad error matrxi from the variables
+glm::mat4 Simplification::ComputeCombinedQuadric(VertexIter &v0, VertexIter &v1) {
+    // Convert the QuadError arrays to glm::mat4
+    glm::mat4 q0 = ConvertArrayToMat4(v0->QuadError);
+    glm::mat4 q1 = ConvertArrayToMat4(v1->QuadError);
+
+    return q0 + q1; // Return the combined quadric
+}
+
+//Just helper to convert to matrix
+glm::mat4 Simplification::ConvertArrayToMat4(const float arr[10]) {
+    glm::mat4 mat(0.0f);
+    mat[0][0] = arr[0];
+    mat[0][1] = mat[1][0] = arr[1];
+    mat[0][2] = mat[2][0] = arr[2];
+    mat[0][3] = mat[3][0] = arr[3];
+    mat[1][1] = arr[4];
+    mat[1][2] = mat[2][1] = arr[5];
+    mat[1][3] = mat[3][1] = arr[6];
+    mat[2][2] = arr[7];
+    mat[2][3] = mat[3][2] = arr[8];
+    mat[3][3] = arr[9];
+    return mat;
+}
+
+//Functions to solve a linear system
+bool Simplification::SolveLinearSystem(const glm::mat4 &matrix, const glm::vec4 &rhs, glm::vec4 &solution) {
+    glm::mat4 inverseMatrix = glm::inverse(matrix);
+    if (glm::determinant(matrix) == 0.0f) {
+        return false; // matrix is singular, cannot solve
+    }
+    solution = inverseMatrix * rhs;
+    return true;
+}
+
+//Compute the final cost
+float Simplification::ComputeCost(const glm::mat4 &newQ, const glm::vec4 &solution) {
+    glm::vec4 temp = newQ * solution;
+    return glm::dot(solution, temp);
+}
+
+//Actual Functions ----------------------
+
 //Initialization
 void Simplification::InitSimplification(Mesh *mesh_in) {
     this->mesh = mesh_in;
@@ -56,6 +99,7 @@ void Simplification::InitSimplification(Mesh *mesh_in) {
         ComputeOptimalCoordAndCost(ei);
 }
 
+//Assign Quad error for Vertices
 void Simplification::AssignInitialQ() {
     for (VertexIter vi = mesh->vertices.begin(); vi != mesh->vertices.end(); vi++)
     {
@@ -106,4 +150,38 @@ void Simplification::AssignInitialQ() {
         
     }
     
+}
+
+void Simplification::ComputeOptimalCoordAndCost(EdgeIter &ei)
+{
+    VertexIter v0 = ei->halfedge[0]->vertex;
+    VertexIter v1 = ei->halfedge[0]->next->vertex;
+
+    glm::mat4 newQ = ComputeCombinedQuadric(v0, v1);
+    glm::mat4 matrix;
+    glm::vec4 rhs = { 0.0f, 0.0f, 0.0f, 1.0f };
+    glm::vec4 solution;
+
+    PrepareMatrix(matrix, newQ);
+
+    float cost;
+    glm::vec3 optimalCoord;
+
+    if( SolveLinearSystem(matrix, rhs, solution) )
+    {
+        cost = ComputeCost(newQ, solution);
+        optimalCoord = glm::vec3(solution.x, solution.y, solution.z);
+    }
+    else
+    {
+        cost = 0.0f;
+        optimalCoord = (v0->isBoundary) ? v0->position_ : v1->position_;
+    }
+
+    if(v0->isBoundary || v1->isBoundary) 
+        cost += BOUNDARY_COST;
+
+    heap.push(EdgeCollapseTarget(ei, cost, optimalCoord, ect_id_base));
+    ei->ect_id = ect_id_base++;
+
 }
