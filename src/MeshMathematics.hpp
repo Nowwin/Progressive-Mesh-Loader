@@ -52,7 +52,7 @@ class Simplification {
     void FindNeighborHalfEdge(VertexIter &v1, std::vector<FaceIter> &facesOriginallyIncidentToV0OrV1);
 
     bool IsFinWillNotBeCreated(EdgeIter &ei);
-    void RemoveEdge(EdgeIter &ei, double *optimalCoord, bool isFirstCollapse);
+    void RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFirstCollapse);
 
 protected:
     glm::mat4 ComputeCombinedQuadric(VertexIter &v0, VertexIter &v1);
@@ -60,6 +60,12 @@ protected:
     float ComputeCost(const glm::mat4 &newQ, const glm::vec4 &solution);
     bool SolveLinearSystem(const glm::mat4 &matrix, const glm::vec4 &rhs, glm::vec4 &solution);
     glm::mat4 ConvertArrayToMat4(const float arr[10]); 
+    bool ProcessReaddedEdgeCollapseTarget();
+    bool ProcessSuspendedEdgeCollapseTarget();
+    bool ProcessEdgeCollapseHeap();
+    void InactivateFaces(HalfEdge* hepCollapse);
+    void StoreVertexSplit(EdgeIter &ei, VertexIter &v0, VertexIter &v1);
+    void CollectFacesAroundVertices(VertexIter &v0, VertexIter &v1, std::vector<FaceIter>& faces);
 public:
     Simplification(){ ect_id_base = 0; }
 
