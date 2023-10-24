@@ -86,21 +86,6 @@ float Simplification::ComputeCost(const glm::mat4 &newQ, const glm::vec4 &soluti
     return glm::dot(solution, temp);
 }
 
-//Actual Functions ----------------------
-
-//------------Initialization-------------------------------------
-
-//Initialization
-void Simplification::InitSimplification(Mesh *mesh_in) {
-    this->mesh = mesh_in;
-    this->n_active_faces = this->mesh->n_faces;
-
-    AssignInitialQ();
-
-    for(EdgeIter ei = mesh->edges.begin(); ei != mesh->edges.end(); ++ei)
-        ComputeOptimalCoordAndCost(ei);
-}
-
 //Assign Quad error for Vertices
 void Simplification::AssignInitialQ() {
     for (VertexIter vi = mesh->vertices.begin(); vi != mesh->vertices.end(); vi++)
@@ -190,3 +175,51 @@ void Simplification::ComputeOptimalCoordAndCost(EdgeIter &ei)
     ei->ect_id = ect_id_base++;
 
 }
+
+//Process edges based on cost from the heap
+bool Simplification::ProcessEdgeCollapseHeap() {
+    while(!heap.empty()) {
+        EdgeCollapseTarget ect = heap.top();
+        heap.pop();
+
+        if(ect.ei->isActive == true && ect.id == ect.ei->ect_id) {
+            if(IsFinWillNotBeCreated(ect.ei)) {
+                RemoveEdge(ect.ei, ect.optimalCoord, true); 
+                return true;
+            }
+            else {
+                suspendedEdgeCollapseTarget.push_back(ect);
+            }
+        }
+    }
+    return false;
+}
+
+//Actual Functions ----------------------
+
+//------------Initialization-------------------------------------
+
+//Initialization
+void Simplification::InitSimplification(Mesh *mesh_in) {
+    this->mesh = mesh_in;
+    this->n_active_faces = this->mesh->n_faces;
+
+    AssignInitialQ();
+
+    for(EdgeIter ei = mesh->edges.begin(); ei != mesh->edges.end(); ++ei)
+        ComputeOptimalCoordAndCost(ei);
+}
+
+//-----------------------------------------------------------------
+
+
+//------------Mesh Simplification: Collapsing an Edge-------------------------------------
+
+bool Simplification::EdgeCollapse() {
+    if (n_active_faces < 3) return false;
+    if (ProcessReaddedEdgeCollapseTarget()) return true;
+    if (ProcessSuspendedEdgeCollapseTarget()) return true;
+    return ProcessEdgeCollapseHeap();
+}
+
+//-----------------------------------------------------------------
