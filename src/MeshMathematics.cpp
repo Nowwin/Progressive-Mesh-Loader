@@ -88,6 +88,8 @@ float Simplification::ComputeCost(const glm::mat4 &newQ, const glm::vec4 &soluti
 
 //Actual Functions ----------------------
 
+//------------Initialization-------------------------------------
+
 //Initialization
 void Simplification::InitSimplification(Mesh *mesh_in) {
     this->mesh = mesh_in;
@@ -152,6 +154,7 @@ void Simplification::AssignInitialQ() {
     
 }
 
+//Calculates the cost and the cooridnate after collapse for an Edge
 void Simplification::ComputeOptimalCoordAndCost(EdgeIter &ei)
 {
     VertexIter v0 = ei->halfedge[0]->vertex;
@@ -162,6 +165,7 @@ void Simplification::ComputeOptimalCoordAndCost(EdgeIter &ei)
     glm::vec4 rhs = { 0.0f, 0.0f, 0.0f, 1.0f };
     glm::vec4 solution;
 
+    //Preparing the Quad matrix to be solved
     PrepareMatrix(matrix, newQ);
 
     float cost;
@@ -181,6 +185,7 @@ void Simplification::ComputeOptimalCoordAndCost(EdgeIter &ei)
     if(v0->isBoundary || v1->isBoundary) 
         cost += BOUNDARY_COST;
 
+    //Storing the Edge Collapse info in priority Queue based on cost
     heap.push(EdgeCollapseTarget(ei, cost, optimalCoord, ect_id_base));
     ei->ect_id = ect_id_base++;
 
