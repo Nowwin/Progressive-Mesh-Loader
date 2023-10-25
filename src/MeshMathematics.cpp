@@ -139,6 +139,13 @@ void Simplification::AssignInitialQ() {
     
 }
 
+void Simplification::PrepareMatrix(glm::mat4 &matrix, const glm::mat4 &newQ) {
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 4; j++)
+            matrix[i][j] = newQ[i][j];
+    matrix[3] = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+}
+
 //Calculates the cost and the cooridnate after collapse for an Edge
 void Simplification::ComputeOptimalCoordAndCost(EdgeIter &ei)
 {
@@ -483,3 +490,21 @@ bool Simplification::EdgeCollapse() {
 }
 
 //-----------------------------------------------------------------
+
+void Simplification::VertexSplit() {
+    std::cerr << "Vertex Split called!" << std::endl;
+}
+
+void Simplification::ControlLevelOfDetail(int step)
+{
+    int n_target_faces = mesh->n_faces*pow(0.95, step);
+
+    std::cerr << "step " << step << " " << n_target_faces << " " << mesh->n_faces << std::endl;
+
+    if(n_target_faces < n_active_faces){
+        while(n_target_faces < n_active_faces) if(EdgeCollapse() == false) break;
+    }else if(n_target_faces > n_active_faces){
+        while(n_target_faces > n_active_faces) VertexSplit();
+    }
+
+}
