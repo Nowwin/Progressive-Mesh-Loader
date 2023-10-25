@@ -260,7 +260,44 @@ void Simplification::InactivateFaces(HalfEdge* hepCollapse) {
     n_active_faces--;
 }
 
+//Stores vertex information for restoration
 void Simplification::StoreVertexSplit(EdgeIter &ei, VertexIter &v0, VertexIter &v1) {
+    vertexSplitTarget.push(VertexSplitTarget());
+    vertexSplitTarget.top().ei = ei;
+    vertexSplitTarget.top().v1OriginalCoord = v1->position_;
+    vertexSplitTarget.top().v1OriginalIsBoundary = v1->isBoundary;
+
+}
+
+void Simplification::CollectFacesAroundVertices(EdgeIter &ei, VertexIter &v0, VertexIter &v1,  std::vector<FaceIter> &facesOriginallyIncidentToV0OrV1) {
+    HalfEdge *hepCollapse = ei->halfedge[0];
+    
+    //Storing all faces for vertex V0
+    HalfEdge *startHalfEdge;
+    if(v0->isBoundary == false) {
+        startHalfEdge = hepCollapse;
+    } else startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(hepCollapse);
+
+    HalfEdge *hep = startHalfEdge;
+    do{
+        facesOriginallyIncidentToV0OrV1.push_back(hep->face);
+
+        hep = hep->prev->mate;
+    }while(hep != startHalfEdge && hep != NULL);
+
+    //Storing all faces for vertex V0
+    if(v1->isBoundary == false) startHalfEdge = hepCollapse->next;
+    else                        startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(hepCollapse->next);
+
+    hep = startHalfEdge;
+    do{
+        facesOriginallyIncidentToV0OrV1.push_back(hep->face);
+
+        hep = hep->prev->mate;
+    }while(hep != startHalfEdge && hep != NULL);    
+}
+
+void Simplification::ReplaceVerticesOfHalfEdges(VertexIter &v0, VertexIter &v1) {
     
 }
 
@@ -272,10 +309,9 @@ void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFir
     StoreVertexSplit(ei, v0, v1);
 
     std::vector<FaceIter> facesOriginallyIncidentToV0OrV1;
-    CollectFacesAroundVertices(v0, v1, facesOriginallyIncidentToV0OrV1);
+    CollectFacesAroundVertices(ei, v0, v1, facesOriginallyIncidentToV0OrV1);
     ReplaceVerticesOfHalfEdges(v0, v1);
-    UpdateEdgeMateInfo(hepCollapse);
-    
+    UpdateEdgeMateInfo(hepCollapse);    
 }
 
 
