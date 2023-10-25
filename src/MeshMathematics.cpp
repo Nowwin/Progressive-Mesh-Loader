@@ -298,8 +298,96 @@ void Simplification::CollectFacesAroundVertices(EdgeIter &ei, VertexIter &v0, Ve
 }
 
 void Simplification::ReplaceVerticesOfHalfEdges(VertexIter &v0, VertexIter &v1) {
-    
+    HalfEdge *startHalfEdge;
+    if(!v0->isBoundary) startHalfEdge = v0->neighborHe;
+    else                startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(v0->neighborHe);
+
+    HalfEdge *hep = startHalfEdge;
+    do {
+        if(hep->face->isActive) {
+            hep->vertex = v1;
+        }
+
+        if(hep->prev->mate == NULL) break;
+        hep = hep->prev->mate;
+    } while(hep != startHalfEdge && hep != NULL);
 }
+
+void Simplification::UpdateEdgeMateInfo(HalfEdge* hepCollapse) {
+    hepCollapse->edge->isActive = false;
+
+    if(hepCollapse->next->mate != NULL) hepCollapse->next->mate->mate = hepCollapse->prev->mate;
+    if(hepCollapse->prev->mate != NULL) hepCollapse->prev->mate->mate = hepCollapse->next->mate;
+
+    hepCollapse->prev->edge->isActive = false;
+
+    if(hepCollapse->next->edge->halfedge[0] == hepCollapse->next) {
+        hepCollapse->next->edge->halfedge[0] = hepCollapse->prev->mate;
+    } else {
+        hepCollapse->next->edge->halfedge[1] = hepCollapse->prev->mate;
+    }
+
+    // Ensuring halfedge[0] is not NULL for edge
+    if(hepCollapse->next->edge->halfedge[0] == NULL) {
+        if(hepCollapse->next->edge->halfedge[1] != NULL) {
+            std::swap(hepCollapse->next->edge->halfedge[0], hepCollapse->next->edge->halfedge[1]);
+        } else {
+            hepCollapse->next->edge->isActive = false;
+        }
+    }
+
+    if(hepCollapse->prev->mate != NULL) hepCollapse->prev->mate->edge = hepCollapse->next->edge;
+
+    // Handling the mate side
+    if(hepCollapse->mate != NULL) {
+        if(hepCollapse->mate->next->mate != NULL) hepCollapse->mate->next->mate->mate = hepCollapse->mate->prev->mate;
+        if(hepCollapse->mate->prev->mate != NULL) hepCollapse->mate->prev->mate->mate = hepCollapse->mate->next->mate;
+
+        hepCollapse->mate->next->edge->isActive = false;
+
+        if(hepCollapse->mate->prev->edge->halfedge[0] == hepCollapse->mate->prev) {
+            hepCollapse->mate->prev->edge->halfedge[0] = hepCollapse->mate->next->mate;
+        } else {
+            hepCollapse->mate->prev->edge->halfedge[1] = hepCollapse->mate->next->mate;
+        }
+
+        // Ensuring halfedge[0] is not NULL for the mate's edge
+        if(hepCollapse->mate->prev->edge->halfedge[0] == NULL) {
+            if(hepCollapse->mate->prev->edge->halfedge[1] != NULL) {
+                std::swap(hepCollapse->mate->prev->edge->halfedge[0], hepCollapse->mate->prev->edge->halfedge[1]);
+            } else {
+                hepCollapse->mate->prev->edge->isActive = false;
+            }
+        }
+
+        if(hepCollapse->mate->next->mate != NULL) hepCollapse->mate->next->mate->edge = hepCollapse->mate->prev->edge;
+    }
+}
+
+void Simplification::UpdateVertexNormal(VertexIter &v) {
+    glm::vec3 normalSum(0.0f, 0.0f, 0.0f);
+    int faceCount = 0;
+
+    HalfEdge *startHalfEdge;
+    if(!v->isBoundary) startHalfEdge = v->neighborHe;
+    else                startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(v->neighborHe);
+
+    HalfEdge *hep = startHalfEdge;
+    do {
+        if(hep->face->isActive) {
+            normalSum += hep->face->normal_;  // Assuming you have face normals precomputed or available
+            faceCount++;
+        }
+
+        if(hep->prev->mate == NULL) break;
+        hep = hep->prev->mate;
+    } while(hep != startHalfEdge && hep != NULL);
+
+    if(faceCount > 0) {
+        v->normal_ = glm::normalize(normalSum / static_cast<float>(faceCount));
+    }
+}
+
 
 void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFirstCollapse) {
     HalfEdge *hepCollapse = ei->halfedge[0];
@@ -311,7 +399,8 @@ void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFir
     std::vector<FaceIter> facesOriginallyIncidentToV0OrV1;
     CollectFacesAroundVertices(ei, v0, v1, facesOriginallyIncidentToV0OrV1);
     ReplaceVerticesOfHalfEdges(v0, v1);
-    UpdateEdgeMateInfo(hepCollapse);    
+    UpdateEdgeMateInfo(hepCollapse);   
+    UpdateVertexNormal(v1); 
 }
 
 
@@ -333,6 +422,36 @@ bool Simplification::ProcessEdgeCollapseHeap() {
     }
     return false;
 }
+
+bool Simplification::ProcessReaddedEdgeCollapseTarget() {
+    if (readdedEdgeCollapseTarget.empty() == false) {
+        RemoveEdge(readdedEdgeCollapseTarget.top().ei, readdedEdgeCollapseTarget.top().optimalCoord, false);
+        readdedEdgeCollapseTarget.pop();
+        return true;
+    }
+    return false;
+}
+
+bool Simplification::ProcessSuspendedEdgeCollapseTarget() {
+    std::list<EdgeCollapseTarget>::iterator ecti = suspendedEdgeCollapseTarget.begin();
+    while (ecti != suspendedEdgeCollapseTarget.end()) {
+        
+        if(ecti->ei->isActive == false || ecti->id != ecti->ei->ect_id){
+            // obsolete. delete this
+            ecti = suspendedEdgeCollapseTarget.erase(ecti);
+        } else {
+            if( IsFinWillNotBeCreated(ecti->ei) ){
+                RemoveEdge(ecti->ei, ecti->optimalCoord, true);
+                ecti = suspendedEdgeCollapseTarget.erase(ecti);
+                return true;
+            } else {
+                ecti++;
+            }
+        }
+    }
+    return false;
+}
+
 
 
 
