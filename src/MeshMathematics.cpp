@@ -176,6 +176,90 @@ void Simplification::ComputeOptimalCoordAndCost(EdgeIter &ei)
 
 }
 
+//Checking for residula fins
+bool Simplification::IsFinWillNotBeCreated(EdgeIter &edgeIter)
+{
+    // Retrieve the half-edge associated with the edge we're considering for collapse.
+    HalfEdge* collapseEdge = edgeIter->halfedge[0];
+
+    // Retrieve the vertices at the ends of this edge.
+    VertexIter startVertex = collapseEdge->vertex;
+    VertexIter endVertex = collapseEdge->next->vertex;
+
+    HalfEdge* initialHalfEdgeStart, *initialHalfEdgeEnd;
+
+    // For non-boundary vertices, set the starting half-edge to the collapseEdge.
+    // For boundary vertices, find the boundary edge in a clockwise manner.
+    initialHalfEdgeStart = (startVertex->isBoundary) ? FindBoundaryEdgeIncidentToVertexInCW(collapseEdge) : collapseEdge;
+    initialHalfEdgeEnd = (endVertex->isBoundary) ? FindBoundaryEdgeIncidentToVertexInCW(collapseEdge->next) : collapseEdge->next;
+
+    HalfEdge* currentHalfEdgeStart = initialHalfEdgeStart;
+
+    do {
+        HalfEdge* currentHalfEdgeEnd = initialHalfEdgeEnd;
+
+        do {
+            // Check if the vertices adjacent to currentHalfEdgeStart and currentHalfEdgeEnd are the same.
+            if (currentHalfEdgeStart->next->vertex == currentHalfEdgeEnd->next->vertex ||
+                (!currentHalfEdgeEnd->prev->mate && currentHalfEdgeStart->next->vertex == currentHalfEdgeEnd->prev->vertex)) {
+                
+                VertexIter sharedVertex = currentHalfEdgeStart->next->vertex;
+
+                // If the shared vertex is not one of the two end-points of the collapsing edge, return false.
+                if (sharedVertex != collapseEdge->prev->vertex &&
+                    (collapseEdge->mate && sharedVertex != collapseEdge->mate->prev->vertex)) {
+
+                    return false;
+                }
+            }
+
+            // Check for boundary vertices.
+            if (!currentHalfEdgeStart->prev->mate) {
+
+                // Check if the previous vertex of currentHalfEdgeStart and the adjacent vertex of currentHalfEdgeEnd are the same.
+                if (currentHalfEdgeStart->prev->vertex == currentHalfEdgeEnd->next->vertex ||
+                    (!currentHalfEdgeEnd->prev->mate && currentHalfEdgeStart->prev->vertex == currentHalfEdgeEnd->prev->vertex)) {
+
+                    VertexIter sharedBoundaryVertex = currentHalfEdgeStart->prev->vertex;
+
+                    // Again, ensure that if these vertices become neighbors, they won't form a fin.
+                    if (sharedBoundaryVertex != collapseEdge->prev->vertex &&
+                        (collapseEdge->mate && sharedBoundaryVertex != collapseEdge->mate->prev->vertex)) {
+
+                        return false;
+                    }
+                }
+            }
+
+            // Traverse to the previous connected half-edge.
+            currentHalfEdgeEnd = currentHalfEdgeEnd->prev->mate;
+
+        } while (currentHalfEdgeEnd && currentHalfEdgeEnd != initialHalfEdgeEnd);
+
+        // Similarly, traverse to the previous connected half-edge for the start vertex.
+        currentHalfEdgeStart = currentHalfEdgeStart->prev->mate;
+
+    } while (currentHalfEdgeStart && currentHalfEdgeStart != initialHalfEdgeStart);
+
+    // If all checks passed, no fin will be created by collapsing this edge.
+    return true;
+}
+
+void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFirstCollapse) {
+    HalfEdge *hepCollapse = ei->halfedge[0];
+    VertexIter v0 = hepCollapse->vertex;
+    VertexIter v1 = hepCollapse->next->vertex;
+    InactivateFaces(hepCollapse);
+    StoreVertexSplit(ei, v0, v1);
+
+    std::vector<FaceIter> facesOriginallyIncidentToV0OrV1;
+    CollectFacesAroundVertices(v0, v1, facesOriginallyIncidentToV0OrV1);
+    ReplaceVerticesOfHalfEdges(v0, v1);
+    UpdateEdgeMateInfo(hepCollapse);
+    
+}
+
+
 //Process edges based on cost from the heap
 bool Simplification::ProcessEdgeCollapseHeap() {
     while(!heap.empty()) {
@@ -194,6 +278,8 @@ bool Simplification::ProcessEdgeCollapseHeap() {
     }
     return false;
 }
+
+
 
 //Actual Functions ----------------------
 

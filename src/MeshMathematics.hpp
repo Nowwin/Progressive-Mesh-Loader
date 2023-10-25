@@ -61,7 +61,9 @@ class Simplification {
     bool ProcessEdgeCollapseHeap();
     void InactivateFaces(HalfEdge* hepCollapse);
     void StoreVertexSplit(EdgeIter &ei, VertexIter &v0, VertexIter &v1);
-    void CollectFacesAroundVertices(VertexIter &v0, VertexIter &v1, std::vector<FaceIter>& faces);
+    void ReplaceVerticesOfHalfEdges(VertexIter &v0, VertexIter &v1);
+    void UpdateEdgeMateInfo(HalfEdge* hepCollapse);
+    void CollectFacesAroundVertices(VertexIter &v0, VertexIter &v1,  std::vector<FaceIter> &facesOriginallyIncidentToV0OrV1);
 
 public:
     Simplification(){ ect_id_base = 0; }
