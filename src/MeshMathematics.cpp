@@ -245,6 +245,25 @@ bool Simplification::IsFinWillNotBeCreated(EdgeIter &edgeIter)
     return true;
 }
 
+//Removes the faces associated with the edge to be collapsed
+void Simplification::InactivateFaces(HalfEdge* hepCollapse) {
+    //Removing the first face
+    hepCollapse->face->isActive = false;
+
+    //Removing the second face if exits
+    if (hepCollapse->mate != NULL)
+    {
+        hepCollapse->mate->face->isActive = false;
+        n_active_faces--;
+    }
+
+    n_active_faces--;
+}
+
+void Simplification::StoreVertexSplit(EdgeIter &ei, VertexIter &v0, VertexIter &v1) {
+    
+}
+
 void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFirstCollapse) {
     HalfEdge *hepCollapse = ei->halfedge[0];
     VertexIter v0 = hepCollapse->vertex;
