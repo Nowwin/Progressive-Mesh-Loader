@@ -104,7 +104,7 @@ void GraphicsApp::VertexSpecification() {
     bunny.ConstructMeshDataStructure(filename);
     Simplification simple = Simplification();
     simple.InitSimplification(&bunny);
-    simple.ControlLevelOfDetail(4);
+    simple.ControlLevelOfDetail(50);
     Mesh* bunnyModified = simple.GetModifiedMesh();
     const std::vector<GLfloat> vertexData(bunnyModified->GetVertexData());
 

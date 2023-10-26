@@ -222,10 +222,12 @@ bool Mesh::ConstructMeshDataStructure(char *filename)
 
 std::vector<GLfloat> Mesh::GetVertexData() {
     std::vector<GLfloat> vertexData;
-    
+    vertexIndexMap.clear();
+    int newIndex = 0; // New index for each active vertex
     // Iterate over each vertex in the mesh.
     for (const Vertex& vertex : vertices) {
         if (vertex.isActive) {
+            vertexIndexMap[vertex.id] = newIndex++;
             // Add vertex position
             vertexData.push_back(vertex.position_.x);
             vertexData.push_back(vertex.position_.y);
@@ -249,9 +251,9 @@ std::vector<GLuint> Mesh::GetIndexData() {
         // For each half-edge of the face, retrieve the corresponding vertex's id.
         if (face.isActive) {
         // Assuming triangular faces
-            indexData.push_back(face.halfedge[0].vertex->id);
-            indexData.push_back(face.halfedge[1].vertex->id);
-            indexData.push_back(face.halfedge[2].vertex->id);
+            indexData.push_back(vertexIndexMap[face.halfedge[0].vertex->id]);
+            indexData.push_back(vertexIndexMap[face.halfedge[1].vertex->id]);
+            indexData.push_back(vertexIndexMap[face.halfedge[2].vertex->id]);
         }
     }
     

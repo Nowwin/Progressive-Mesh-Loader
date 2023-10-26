@@ -54,7 +54,7 @@ class Simplification {
     glm::mat4 ComputeCombinedQuadric(VertexIter &v0, VertexIter &v1);
     void PrepareMatrix(glm::mat4 &matrix, const glm::mat4 &newQ);
     float ComputeCost(const glm::mat4 &newQ, const glm::vec4 &solution);
-    bool SolveLinearSystem(const glm::mat4 &matrix, const glm::vec4 &rhs, glm::vec4 &solution);
+    bool SolveLinearSystem(const glm::mat4 &matrix, glm::vec4 &rhs, glm::vec4 &solution);
     glm::mat4 ConvertArrayToMat4(const float arr[10]); 
     bool ProcessReaddedEdgeCollapseTarget();
     bool ProcessSuspendedEdgeCollapseTarget();

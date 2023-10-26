@@ -71,14 +71,52 @@ glm::mat4 Simplification::ConvertArrayToMat4(const float arr[10]) {
 }
 
 //Functions to solve a linear system
-bool Simplification::SolveLinearSystem(const glm::mat4 &matrix, const glm::vec4 &rhs, glm::vec4 &solution) {
-    glm::mat4 inverseMatrix = glm::inverse(matrix);
-    if (glm::determinant(matrix) == 0.0f) {
-        return false; // matrix is singular, cannot solve
+bool Simplification::SolveLinearSystem(const glm::mat4 &matrix, glm::vec4 &rhs, glm::vec4 &solution) {
+    glm::mat4 mat = matrix;  // Create a copy for manipulation
+
+    // Gaussian elimination
+    for (int i = 0; i < 4; i++) {
+        // Find pivot
+        double maxAbsVal = -1.0;
+        int pivotIndex = i;
+        for (int j = i; j < 4; j++) {
+            if (fabs(mat[j][i]) > maxAbsVal) {
+                maxAbsVal = fabs(mat[j][i]);
+                pivotIndex = j;
+            }
+        }
+
+        // Check for near-singularity
+        if (maxAbsVal < 1e-6) {
+            return false;
+        }
+
+        // Swap rows
+        std::swap(mat[i], mat[pivotIndex]);
+        std::swap(rhs[i], rhs[pivotIndex]);
+
+        // Eliminate
+        for (int j = i + 1; j < 4; j++) {
+            double factor = mat[j][i] / mat[i][i];
+            for (int k = i; k < 4; k++) {
+                mat[j][k] -= factor * mat[i][k];
+            }
+            rhs[j] -= factor * rhs[i];
+        }
     }
-    solution = inverseMatrix * rhs;
+
+    // Back substitution
+    for (int i = 3; i >= 0; i--) {
+        solution[i] = rhs[i];
+        for (int j = i + 1; j < 4; j++) {
+            solution[i] -= mat[i][j] * solution[j];
+        }
+        solution[i] /= mat[i][i];
+    }
+
     return true;
 }
+
 
 //Compute the final cost
 float Simplification::ComputeCost(const glm::mat4 &newQ, const glm::vec4 &solution) {
@@ -146,6 +184,16 @@ void Simplification::PrepareMatrix(glm::mat4 &matrix, const glm::mat4 &newQ) {
     matrix[3] = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
 }
 
+//For debugging
+void printMat4(const glm::mat4 &mat) {
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            std::cerr << mat[i][j] << " ";
+        }
+        std::cerr << std::endl;
+    }
+}
+
 //Calculates the cost and the cooridnate after collapse for an Edge
 void Simplification::ComputeOptimalCoordAndCost(EdgeIter &ei)
 {
@@ -160,11 +208,15 @@ void Simplification::ComputeOptimalCoordAndCost(EdgeIter &ei)
     //Preparing the Quad matrix to be solved
     PrepareMatrix(matrix, newQ);
 
+    //std::cerr << "My matrix:\n";
+    //printMat4(matrix);
+
     float cost;
     glm::vec3 optimalCoord;
 
     if( SolveLinearSystem(matrix, rhs, solution) )
     {
+        //std::cerr << "The solution is: " << solution.x << " " << solution.y << " " << solution.z << " " << std::endl;
         cost = ComputeCost(newQ, solution);
         optimalCoord = glm::vec3(solution.x, solution.y, solution.z);
     }
@@ -627,12 +679,13 @@ bool Simplification::ProcessEdgeCollapseHeap() {
     while(!heap.empty()) {
         EdgeCollapseTarget ect = heap.top();
         heap.pop();
-        std::cerr << "loop-check\n";
+        //std::cerr << "loop-check\n";
         if(ect.ei->isActive == true && ect.id == ect.ei->ect_id) {
             if(IsFinWillNotBeCreated(ect.ei)) {
-                std::cerr << "loop-check-1\n";
+                //std::cerr << "loop-check-1\n";
+                //std::cerr << ect.optimalCoord.x << " " << ect.optimalCoord.y << " " << ect.optimalCoord.z << std::endl;
                 RemoveEdge(ect.ei, ect.optimalCoord, true);
-                std::cerr << "loop-check-2\n"; 
+                //std::cerr << "loop-check-2\n"; 
                 return true;
             }
             else {

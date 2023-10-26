@@ -3,6 +3,7 @@
 #include<iostream>
 #include<vector>
 #include <list>
+#include<unordered_map>
 
 #include "glad/glad.h"
 #include "glm/glm.hpp"
@@ -95,6 +96,8 @@ struct Face {
 
 
 class Mesh {
+private:
+    std::unordered_map<int, int> vertexIndexMap;    
 protected:
     //Reads from an OBJ file - ignores texture and normals
     bool ReadOBJFile(char *filename);
