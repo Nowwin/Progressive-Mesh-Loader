@@ -72,6 +72,9 @@ public:
     bool EdgeCollapse();
     void VertexSplit();
     void ControlLevelOfDetail(int step);
+    Mesh* GetModifiedMesh() const {
+        return mesh;
+    }
 };
 
 

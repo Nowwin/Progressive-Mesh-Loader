@@ -24,7 +24,7 @@ HalfEdge* Simplification::FindBoundaryEdgeIncidentToVertexInCW(HalfEdge *baseHal
 
     // Returning the baseHalfEdge if no boundary edge is found.
     // Ideally, this shouldn't happen if the input is guaranteed to have a boundary edge.
-    return baseHalfEdge;
+    return hep;
 }
 
 //updation of quad Error for vertex
@@ -395,8 +395,24 @@ void Simplification::UpdateVertexNormal(VertexIter &v) {
     }
 }
 
+void Simplification::FindNeighborHalfEdge(VertexIter &v1, std::vector<FaceIter> &facesOriginallyIncidentToV0OrV1)
+{
+    // choose neighborHe of v1 from a face that is still active
 
-void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFirstCollapse) {
+    for(unsigned int i = 0; i < facesOriginallyIncidentToV0OrV1.size(); i++){
+        if(facesOriginallyIncidentToV0OrV1[i]->isActive == true){
+            for(int j = 0; j < 3; j++){
+                if(facesOriginallyIncidentToV0OrV1[i]->halfedge[j].vertex == v1) {
+                    v1->neighborHe = &(facesOriginallyIncidentToV0OrV1[i]->halfedge[j]);
+                    break;
+                }
+            }
+            break;
+        }
+    }
+}
+
+/*void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFirstCollapse) {
     HalfEdge *hepCollapse = ei->halfedge[0];
     VertexIter v0 = hepCollapse->vertex;
     VertexIter v1 = hepCollapse->next->vertex;
@@ -406,9 +422,204 @@ void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFir
     std::vector<FaceIter> facesOriginallyIncidentToV0OrV1;
     CollectFacesAroundVertices(ei, v0, v1, facesOriginallyIncidentToV0OrV1);
     ReplaceVerticesOfHalfEdges(v0, v1);
+    FindNeighborHalfEdge(v1, facesOriginallyIncidentToV0OrV1);
+
+    v1->position_ = optimalCoord;
+    if(isFirstCollapse){
+        // add v0's "Q" to v1's "Q"
+        for(int i = 0; i < 10; i++) v1->QuadError[i] += v0->QuadError[i];
+    }
+
     UpdateEdgeMateInfo(hepCollapse);   
     UpdateVertexNormal(v1); 
+}*/
+
+void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFirstCollapse)
+{
+    HalfEdge *hepCollapse = ei->halfedge[0];
+
+    VertexIter v0 = hepCollapse->vertex;
+    VertexIter v1 = hepCollapse->next->vertex;
+   
+    // inactivate removed faces
+    hepCollapse->face->isActive = false;
+    n_active_faces--;
+
+
+    if(hepCollapse->mate != NULL){
+        hepCollapse->mate->face->isActive = false;
+        n_active_faces--;
+    }
+    
+    vertexSplitTarget.push( VertexSplitTarget() ); 
+
+    vertexSplitTarget.top().ei = ei;
+    vertexSplitTarget.top().v1OriginalCoord = v1->position_;
+    vertexSplitTarget.top().v1OriginalIsBoundary = v1->isBoundary;
+
+
+    HalfEdge *startHalfEdge;
+
+    std::vector<FaceIter> facesOriginallyIncidentToV0OrV1; 
+
+    if(v0->isBoundary == false) startHalfEdge = hepCollapse;
+    else                        startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(hepCollapse);
+
+    HalfEdge *hep = startHalfEdge;
+    do{
+        facesOriginallyIncidentToV0OrV1.push_back(hep->face);
+
+        hep = hep->prev->mate;
+    }while(hep != startHalfEdge && hep != NULL);
+
+    if(v1->isBoundary == false) startHalfEdge = hepCollapse->next;
+    else                        startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(hepCollapse->next);
+
+    hep = startHalfEdge;
+    do{
+        facesOriginallyIncidentToV0OrV1.push_back(hep->face);
+
+        hep = hep->prev->mate;
+    }while(hep != startHalfEdge && hep != NULL);
+
+
+    if(v0->isBoundary == false) startHalfEdge = hepCollapse;
+    else                        startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(hepCollapse);
+
+    // replace v0 of halfedges with v1
+    hep = startHalfEdge;
+    do{
+        if(hep->face->isActive){
+             hep->vertex = v1;
+
+             vertexSplitTarget.top().halfedgesAroundV0.push_back(hep);
+        }
+
+        hep = hep->prev->mate;
+    }while(hep != startHalfEdge && hep != NULL);
+
+#ifdef DEBUG
+    cerr << "e ";
+#endif
+
+    // move v1 to optimalCoord
+    //for(int i = 0; i < 3; i++)  v1->coord[i] = optimalCoord[i];
+    v1->position_ = optimalCoord;
+
+    if(isFirstCollapse){
+        // add v0's "Q" to v1's "Q"
+        for(int i = 0; i < 10; i++) v1->QuadError[i] += v0->QuadError[i];
+    }
+
+    /////////////////////////////////////////////////////////////////////////////
+    // reassign mates of halfedges and corresponding edge information as well
+    /////////////////////////////////////////////////////////////////////////////
+    hepCollapse->edge->isActive = false;
+
+    if(hepCollapse->next->mate != NULL) hepCollapse->next->mate->mate = hepCollapse->prev->mate;
+    if(hepCollapse->prev->mate != NULL) hepCollapse->prev->mate->mate = hepCollapse->next->mate;
+
+    hepCollapse->prev->edge->isActive = false;
+
+    if(hepCollapse->next->edge->halfedge[0] == hepCollapse->next) 
+        hepCollapse->next->edge->halfedge[0] = hepCollapse->prev->mate;
+    else                                         
+        hepCollapse->next->edge->halfedge[1] = hepCollapse->prev->mate;
+
+    // edge->halfedge[0] should not be NULL
+    if(hepCollapse->next->edge->halfedge[0] == NULL){
+        if(hepCollapse->next->edge->halfedge[1] != NULL){
+            // swap
+            hepCollapse->next->edge->halfedge[0] = hepCollapse->next->edge->halfedge[1];
+            hepCollapse->next->edge->halfedge[1] = NULL;
+        }else{ // hepCollapse->next->edge->halfedge[0] == NULL and hepCollapse->next->edge->halfedge[1] == NULL
+            // edge becomes degenerate
+            hepCollapse->next->edge->isActive = false;
+        }
+    }
+
+    if(hepCollapse->prev->mate != NULL) hepCollapse->prev->mate->edge = hepCollapse->next->edge;
+
+
+    if(hepCollapse->mate != NULL){ // when "ect->ei" is not a boundary edge
+        if(hepCollapse->mate->next->mate != NULL) hepCollapse->mate->next->mate->mate = hepCollapse->mate->prev->mate;
+        if(hepCollapse->mate->prev->mate != NULL) hepCollapse->mate->prev->mate->mate = hepCollapse->mate->next->mate;
+
+        hepCollapse->mate->next->edge->isActive = false;
+
+        if(hepCollapse->mate->prev->edge->halfedge[0] == hepCollapse->mate->prev) 
+            hepCollapse->mate->prev->edge->halfedge[0] = hepCollapse->mate->next->mate;
+        else                                                      
+            hepCollapse->mate->prev->edge->halfedge[1] = hepCollapse->mate->next->mate;
+
+        // edge->halfedge[0] should not be NULL
+        if(hepCollapse->mate->prev->edge->halfedge[0] == NULL){
+            if(hepCollapse->mate->prev->edge->halfedge[1] != NULL){
+                // swap
+                hepCollapse->mate->prev->edge->halfedge[0] = hepCollapse->mate->prev->edge->halfedge[1];
+                hepCollapse->mate->prev->edge->halfedge[1] = NULL;
+            }else{ // hepCollapse->mate->prev->edge->halfedge[0] == NULL and hepCollapse->mate->prev->edge->halfedge[1] == NULL
+                // edge becomes degenerate
+                hepCollapse->mate->prev->edge->isActive = false;
+            }
+        }
+
+        if(hepCollapse->mate->next->mate != NULL) hepCollapse->mate->next->mate->edge = hepCollapse->mate->prev->edge;
+    
+    }
+
+   if( hepCollapse->next->edge->isActive == false && 
+       (hepCollapse->mate == NULL || hepCollapse->mate->prev->edge->isActive == false) ){
+       // face disappeared after edge collapsing
+       return;
+   }
+
+
+
+    if(v0->isBoundary) v1->isBoundary = true;
+
+    FindNeighborHalfEdge(v1, facesOriginallyIncidentToV0OrV1);
+
+    if(v1->isBoundary == false) startHalfEdge = v1->neighborHe;
+    else                        startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(v1->neighborHe);
+
+    // update cost and optimal vertex coordinate of incident edges, and normals of incident faces, and incident vertices' neighborHe;
+    hep = startHalfEdge;
+    do{
+
+       if(isFirstCollapse) ComputeOptimalCoordAndCost(hep->edge);
+
+        mesh->AssignFaceNormal(hep->face);
+
+        hep->next->vertex->neighborHe = hep->next;
+
+        if(hep->prev->mate == NULL){
+            if(isFirstCollapse) ComputeOptimalCoordAndCost(hep->prev->edge);    
+            hep->prev->vertex->neighborHe = hep->prev;
+            break;   
+        }
+
+        hep = hep->prev->mate;
+    }while(hep != startHalfEdge && hep != NULL);
+
+
+    // Finally, update vertex normals as well
+    mesh->AssignVertexNormal(v1);
+
+    hep = startHalfEdge;
+    do{
+        mesh->AssignVertexNormal(hep->next->vertex);
+
+        if(hep->prev->mate == NULL){ 
+            mesh->AssignVertexNormal(hep->prev->vertex);
+            break;   
+        }
+
+        hep = hep->prev->mate;
+    }while(hep != startHalfEdge);
+
 }
+
 
 
 //Process edges based on cost from the heap
@@ -416,10 +627,12 @@ bool Simplification::ProcessEdgeCollapseHeap() {
     while(!heap.empty()) {
         EdgeCollapseTarget ect = heap.top();
         heap.pop();
-
+        std::cerr << "loop-check\n";
         if(ect.ei->isActive == true && ect.id == ect.ei->ect_id) {
             if(IsFinWillNotBeCreated(ect.ei)) {
-                RemoveEdge(ect.ei, ect.optimalCoord, true); 
+                std::cerr << "loop-check-1\n";
+                RemoveEdge(ect.ei, ect.optimalCoord, true);
+                std::cerr << "loop-check-2\n"; 
                 return true;
             }
             else {
@@ -468,13 +681,17 @@ bool Simplification::ProcessSuspendedEdgeCollapseTarget() {
 
 //Initialization
 void Simplification::InitSimplification(Mesh *mesh_in) {
+    std::cerr << "Intialization started\n";
     this->mesh = mesh_in;
     this->n_active_faces = this->mesh->n_faces;
 
     AssignInitialQ();
+    std::cerr << "Intialization of Q done\n";
 
     for(EdgeIter ei = mesh->edges.begin(); ei != mesh->edges.end(); ++ei)
         ComputeOptimalCoordAndCost(ei);
+    
+    std::cerr << "Intialization Finished\n";
 }
 
 //-----------------------------------------------------------------
@@ -484,8 +701,11 @@ void Simplification::InitSimplification(Mesh *mesh_in) {
 
 bool Simplification::EdgeCollapse() {
     if (n_active_faces < 3) return false;
+    //std::cerr << "check - 1\n";
     if (ProcessReaddedEdgeCollapseTarget()) return true;
+    //std::cerr << "check - 2\n";
     if (ProcessSuspendedEdgeCollapseTarget()) return true;
+    //std::cerr << "check - 3\n";
     return ProcessEdgeCollapseHeap();
 }
 
@@ -502,9 +722,12 @@ void Simplification::ControlLevelOfDetail(int step)
     std::cerr << "step " << step << " " << n_target_faces << " " << mesh->n_faces << std::endl;
 
     if(n_target_faces < n_active_faces){
-        while(n_target_faces < n_active_faces) if(EdgeCollapse() == false) break;
-    }else if(n_target_faces > n_active_faces){
+        while(n_target_faces < n_active_faces) {
+            if(EdgeCollapse() == false) break;
+            std::cerr << n_active_faces << std::endl;
+        } 
+    }/*else if(n_target_faces > n_active_faces){
         while(n_target_faces > n_active_faces) VertexSplit();
-    }
+    }*/
 
 }

@@ -102,8 +102,11 @@ void GraphicsApp::VertexSpecification() {
     }; */
     char filename[] = "./src/ObjFiles/ver1.obj";
     bunny.ConstructMeshDataStructure(filename);
-
-    const std::vector<GLfloat> vertexData(bunny.GetVertexData());
+    Simplification simple = Simplification();
+    simple.InitSimplification(&bunny);
+    simple.ControlLevelOfDetail(4);
+    Mesh* bunnyModified = simple.GetModifiedMesh();
+    const std::vector<GLfloat> vertexData(bunnyModified->GetVertexData());
 
     glGenVertexArrays(1, &gVertexArrayObject);
     //Selecting
@@ -115,7 +118,7 @@ void GraphicsApp::VertexSpecification() {
 
    
 
-    const std::vector<GLuint> indexBufferData(bunny.GetIndexData());
+    const std::vector<GLuint> indexBufferData(bunnyModified->GetIndexData());
 
     GNumberOfVertices = indexBufferData.size();
                                                 
