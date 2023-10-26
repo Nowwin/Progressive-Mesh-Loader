@@ -16,6 +16,7 @@
 #include "ShaderLoader.hpp"
 #include "MeshGeometry.hpp"
 #include "MeshMathematics.hpp"
+#include "Camera.hpp"
 
 class GraphicsApp {
 public:

@@ -6,6 +6,9 @@ bool wireframeMode = false;
 
 Mesh bunny = Mesh();
 
+// Camera
+Camera gCamera;
+
 void GraphicsApp::GetOpenGLVersionInfo() {
     std::cout << "Vendor: " << glGetString(GL_VENDOR) << std::endl;
     std::cout << "Renderer: " << glGetString(GL_RENDERER) << std::endl;
@@ -147,6 +150,10 @@ void GraphicsApp::LoadShaders() {
 
 
 void GraphicsApp::Input(){
+    // Two static variables to hold the mouse position
+    static int mouseX=m_screenWidth/2;
+    static int mouseY=m_screenHeight/2; 
+
     SDL_Event event;
 
     // (1) Handle Input
@@ -157,29 +164,30 @@ void GraphicsApp::Input(){
             gQuit= true;
         }
 
+        if(event.type == SDL_KEYDOWN && (event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_q)){
+			std::cout << "ESC: Goodbye! (Leaving MainApplicationLoop())" << std::endl;
+            gQuit = true;
+        }
+
+        if(event.type==SDL_MOUSEMOTION){
+            // Capture the change in the mouse position
+            mouseX+=event.motion.xrel;
+            mouseY+=event.motion.yrel;
+            gCamera.MouseLook(mouseX,mouseY);
+        }
+
         const Uint8 *state = SDL_GetKeyboardState(NULL);
-        if (state[SDL_SCANCODE_UP])
-        {
-            m_uOffset += 0.01f;
-            std::cout << "Offset: " << m_uOffset << std::endl;
+        if (state[SDL_SCANCODE_UP]) {
+            gCamera.MoveForward(0.1f);
         }
-
-        if (state[SDL_SCANCODE_DOWN])
-        {
-            m_uOffset -= 0.01f;
-            std::cout << "Offset: " << m_uOffset << std::endl;
+        if (state[SDL_SCANCODE_DOWN]) {
+            gCamera.MoveBackward(0.1f);
         }
-        
-        if (state[SDL_SCANCODE_LEFT])
-        {
-            m_uRotation -= 1.00f;
-            std::cout << "Rotation: " << m_uRotation << std::endl;
+        if (state[SDL_SCANCODE_LEFT]) {
+            gCamera.MoveLeft(0.1f);
         }
-
-        if (state[SDL_SCANCODE_RIGHT])
-        {
-            m_uRotation += 1.00f;
-            std::cout << "Rotation: " << m_uRotation << std::endl;
+        if (state[SDL_SCANCODE_RIGHT]) {
+            gCamera.MoveRight(0.1f);
         }
 
         if (event.type == SDL_KEYDOWN)
@@ -209,26 +217,31 @@ void GraphicsApp::PreDraw() {
 
     glUseProgram(gGraphicsPipelineShaderProgram);
 
-    //Translation
-
-    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, m_uOffset));
+    
+    // Model transformation by translating our object into world space
+    glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
 
     GLint u_modelMatrixLocation = glGetUniformLocation(gGraphicsPipelineShaderProgram, "u_ModelMatrix");
+    if(u_modelMatrixLocation >=0){
+        glUniformMatrix4fv(u_modelMatrixLocation,1,GL_FALSE,&model[0][0]);
+    }else{
+        std::cout << "Could not find u_ModelMatrix, maybe a mispelling?\n";
+        exit(EXIT_FAILURE);
+    }
 
-    //Rotation
-
-    model = glm::rotate(model, glm::radians(m_uRotation), glm::vec3(0.0f, 1.0f, 0.0f));
-
-    if (u_modelMatrixLocation >= 0)
-    {
-        glUniformMatrix4fv(u_modelMatrixLocation, 1, GL_FALSE, &model[0][0]);
-    } else {
-        std::cout << "No location found" << std::endl;
+    // Update the View Matrix
+    GLint u_ViewMatrixLocation = glGetUniformLocation(gGraphicsPipelineShaderProgram,"u_ViewMatrix");
+    if(u_ViewMatrixLocation>=0){
+        glm::mat4 viewMatrix = gCamera.GetViewMatrix();
+        glUniformMatrix4fv(u_ViewMatrixLocation,1,GL_FALSE,&viewMatrix[0][0]);
+    }else{
+        std::cout << "Could not find u_ModelMatrix, maybe a mispelling?\n";
+        exit(EXIT_FAILURE);
     }
 
     //Perspective
 
-    glm::mat4 perspective = glm::perspective(glm::radians(45.0f), (float)m_screenWidth/(float)m_screenHeight, 0.1f, 10.0f);
+    glm::mat4 perspective = glm::perspective(glm::radians(45.0f), (float)m_screenWidth/(float)m_screenHeight, 0.1f, 20.0f);
 
     GLint u_perspectiveLocation = glGetUniformLocation(gGraphicsPipelineShaderProgram, "u_PerspectiveMatrix");
 
@@ -282,6 +295,10 @@ void GraphicsApp::Initialize() {
 }
 
 void GraphicsApp::MainLoop() {
+
+    SDL_WarpMouseInWindow(gGraphicsApplicationWindow,m_screenWidth/2,m_screenHeight/2);
+    SDL_SetRelativeMouseMode(SDL_TRUE);
+
     while (!gQuit) {
         Input();
         

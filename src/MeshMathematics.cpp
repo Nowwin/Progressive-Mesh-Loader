@@ -423,30 +423,6 @@ void Simplification::UpdateEdgeMateInfo(HalfEdge* hepCollapse) {
     }
 }
 
-void Simplification::UpdateVertexNormal(VertexIter &v) {
-    glm::vec3 normalSum(0.0f, 0.0f, 0.0f);
-    int faceCount = 0;
-
-    HalfEdge *startHalfEdge;
-    if(!v->isBoundary) startHalfEdge = v->neighborHe;
-    else                startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(v->neighborHe);
-
-    HalfEdge *hep = startHalfEdge;
-    do {
-        if(hep->face->isActive) {
-            normalSum += hep->face->normal_;  // Assuming you have face normals precomputed or available
-            faceCount++;
-        }
-
-        if(hep->prev->mate == NULL) break;
-        hep = hep->prev->mate;
-    } while(hep != startHalfEdge && hep != NULL);
-
-    if(faceCount > 0) {
-        v->normal_ = glm::normalize(normalSum / static_cast<float>(faceCount));
-    }
-}
-
 void Simplification::FindNeighborHalfEdge(VertexIter &v1, std::vector<FaceIter> &facesOriginallyIncidentToV0OrV1)
 {
     // choose neighborHe of v1 from a face that is still active
@@ -489,6 +465,8 @@ void Simplification::FindNeighborHalfEdge(VertexIter &v1, std::vector<FaceIter> 
 void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFirstCollapse)
 {
     HalfEdge *hepCollapse = ei->halfedge[0];
+    HalfEdge *startHalfEdge = nullptr;
+    HalfEdge * hep = startHalfEdge;
 
     VertexIter v0 = hepCollapse->vertex;
     VertexIter v1 = hepCollapse->next->vertex;
@@ -499,40 +477,16 @@ void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFir
 
     std::vector<FaceIter> facesOriginallyIncidentToV0OrV1; 
     CollectFacesAroundVertices(ei, v0, v1, facesOriginallyIncidentToV0OrV1);
+    ReplaceVerticesOfHalfEdges(v0, v1);
 
-    HalfEdge *startHalfEdge;
-    
-    if(v0->isBoundary == false) startHalfEdge = hepCollapse;
-    else                        startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(hepCollapse);
-
-    // replace v0 of halfedges with v1
-    HalfEdge * hep = startHalfEdge;
-    do{
-        if(hep->face->isActive){
-             hep->vertex = v1;
-
-             vertexSplitTarget.top().halfedgesAroundV0.push_back(hep);
-        }
-
-        hep = hep->prev->mate;
-    }while(hep != startHalfEdge && hep != NULL);
-
-#ifdef DEBUG
-    cerr << "e ";
-#endif
-
-    // move v1 to optimalCoord
-    //for(int i = 0; i < 3; i++)  v1->coord[i] = optimalCoord[i];
+    //Aligning v1 to the new coordinate and updating quad
     v1->position_ = optimalCoord;
 
     if(isFirstCollapse){
-        // add v0's "Q" to v1's "Q"
         for(int i = 0; i < 10; i++) v1->QuadError[i] += v0->QuadError[i];
     }
 
-    /////////////////////////////////////////////////////////////////////////////
-    // reassign mates of halfedges and corresponding edge information as well
-    /////////////////////////////////////////////////////////////////////////////
+    //Half Edge and Edge Updates
     hepCollapse->edge->isActive = false;
 
     if(hepCollapse->next->mate != NULL) hepCollapse->next->mate->mate = hepCollapse->prev->mate;
@@ -622,7 +576,7 @@ void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFir
     }while(hep != startHalfEdge && hep != NULL);
 
 
-    // Finally, update vertex normals as well
+    // Updating the Normals
     mesh->AssignVertexNormal(v1);
 
     hep = startHalfEdge;
@@ -730,6 +684,8 @@ bool Simplification::EdgeCollapse() {
 }
 
 //-----------------------------------------------------------------
+
+//------------Mesh Simplification: Collapsing an Edge-------------------------------------
 
 void Simplification::VertexSplit() {
     std::cerr << "Vertex Split called!" << std::endl;

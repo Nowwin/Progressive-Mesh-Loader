@@ -64,7 +64,6 @@ class Simplification {
     void ReplaceVerticesOfHalfEdges(VertexIter &v0, VertexIter &v1);
     void UpdateEdgeMateInfo(HalfEdge* hepCollapse);
     void CollectFacesAroundVertices(EdgeIter &ei, VertexIter &v0, VertexIter &v1,  std::vector<FaceIter> &facesOriginallyIncidentToV0OrV1);
-    void UpdateVertexNormal(VertexIter &v);
 public:
     Simplification(){ ect_id_base = 0; }
 
