@@ -493,53 +493,20 @@ void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFir
     VertexIter v0 = hepCollapse->vertex;
     VertexIter v1 = hepCollapse->next->vertex;
    
-    // inactivate removed faces
-    hepCollapse->face->isActive = false;
-    n_active_faces--;
-
-
-    if(hepCollapse->mate != NULL){
-        hepCollapse->mate->face->isActive = false;
-        n_active_faces--;
-    }
+    InactivateFaces(hepCollapse);
+    StoreVertexSplit(ei, v0, v1);
     
-    vertexSplitTarget.push( VertexSplitTarget() ); 
-
-    vertexSplitTarget.top().ei = ei;
-    vertexSplitTarget.top().v1OriginalCoord = v1->position_;
-    vertexSplitTarget.top().v1OriginalIsBoundary = v1->isBoundary;
-
-
-    HalfEdge *startHalfEdge;
 
     std::vector<FaceIter> facesOriginallyIncidentToV0OrV1; 
+    CollectFacesAroundVertices(ei, v0, v1, facesOriginallyIncidentToV0OrV1);
 
-    if(v0->isBoundary == false) startHalfEdge = hepCollapse;
-    else                        startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(hepCollapse);
-
-    HalfEdge *hep = startHalfEdge;
-    do{
-        facesOriginallyIncidentToV0OrV1.push_back(hep->face);
-
-        hep = hep->prev->mate;
-    }while(hep != startHalfEdge && hep != NULL);
-
-    if(v1->isBoundary == false) startHalfEdge = hepCollapse->next;
-    else                        startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(hepCollapse->next);
-
-    hep = startHalfEdge;
-    do{
-        facesOriginallyIncidentToV0OrV1.push_back(hep->face);
-
-        hep = hep->prev->mate;
-    }while(hep != startHalfEdge && hep != NULL);
-
-
+    HalfEdge *startHalfEdge;
+    
     if(v0->isBoundary == false) startHalfEdge = hepCollapse;
     else                        startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(hepCollapse);
 
     // replace v0 of halfedges with v1
-    hep = startHalfEdge;
+    HalfEdge * hep = startHalfEdge;
     do{
         if(hep->face->isActive){
              hep->vertex = v1;
