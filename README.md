@@ -25,10 +25,10 @@ Successfully rendered large geometric models with real-time zoom and detail adju
 *After 30 steps - active faces: 1066*
 
 ![post40](images/post40.png)
-*After 30 steps - active faces: 638*
+*After 40 steps - active faces: 638*
 
 ![post50](images/post50.png)
-*After 30 steps - active faces: 382*
+*After 50 steps - active faces: 382*
 
 ### Credits:
 - The build script was created by Prof. Mike Shah which he provided as part of our coursework in Computer Graphics
