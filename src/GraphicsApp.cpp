@@ -67,47 +67,13 @@ void GraphicsApp::IntializeProgram() {
 }
 
 void GraphicsApp::VertexSpecification() {
-    /* const std::vector<GLfloat> vertexData{
-        //0 Vertex
-        -0.5f, -0.5f, 0.0f, //Left Pos
-        1.0f, 0.0f, 0.0f, //Left Color
-        //1 Vertex
-        0.5f, -0.5f, 0.0f, //Right Pos
-        0.0f, 1.0f, 0.0f, //Right Color
-        //2 Vertex
-        -0.5f, 0.5f, 0.0f, //Top Pos
-        0.0f, 0.0f, 1.0f, //Top Color
-        //3 Vertex
-        0.5f, 0.5f, 0.0f, //Top Pos
-        0.0f, 0.0f, 1.0f, //Top Color                     
-    }; */
-
-    /* const std::vector<GLfloat> vertexData{
-        -0.5f, -0.5f, -0.5f, 1.0f, 0.0f, 0.0f,
-        0.5f, -0.5f, -0.5f, 0.0f, 1.0f, 0.0f,
-        0.5f,  0.5f, -0.5f, 0.0f, 0.0f, 1.0f,
-        -0.5f,  0.5f, -0.5f, 1.0f, 0.0f, 0.0f,
-        -0.5f, -0.5f,  0.5f, 0.0f, 1.0f, 0.0f,
-        0.5f, -0.5f,  0.5f, 0.0f, 0.0f, 1.0f,
-        0.5f,  0.5f,  0.5f, 1.0f, 0.0f, 0.0f,
-        -0.5f,  0.5f,  0.5f, 0.0f, 1.0f, 0.0f,                   
-    }; */
-
-    /* const std::vector<GLfloat> vertexData{
-        -0.5f, -0.5f, -0.5f,
-        0.5f, -0.5f, -0.5f,
-        0.5f,  0.5f, -0.5f,
-        -0.5f,  0.5f, -0.5f,
-        -0.5f, -0.5f,  0.5f,
-        0.5f, -0.5f,  0.5f,
-        0.5f,  0.5f,  0.5f,
-        -0.5f,  0.5f,  0.5f,                
-    }; */
+    
     char filename[] = "./src/ObjFiles/ver1.obj";
     bunny.ConstructMeshDataStructure(filename);
     Simplification simple = Simplification();
     simple.InitSimplification(&bunny);
-    simple.ControlLevelOfDetail(20);
+    simple.ControlLevelOfDetail(50);
+    simple.ControlLevelOfDetail(40);
     Mesh* bunnyModified = simple.GetModifiedMesh();
     const std::vector<GLfloat> vertexData(bunnyModified->GetVertexData());
 

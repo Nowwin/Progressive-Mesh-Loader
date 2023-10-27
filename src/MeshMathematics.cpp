@@ -647,6 +647,37 @@ bool Simplification::ProcessSuspendedEdgeCollapseTarget() {
 }
 
 
+void Simplification::UpdateNormalsAroundVertex(VertexIter &v_target) {
+    // Determine the starting half-edge
+    HalfEdge *startHalfEdge;
+    if(v_target->isBoundary == false) {
+        startHalfEdge = v_target->neighborHe;
+    } else {
+        startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(v_target->neighborHe);
+    }
+
+    // Update normals of incident faces
+    HalfEdge *hep = startHalfEdge;
+    do {
+        mesh->AssignFaceNormal(hep->face);
+        hep = hep->prev->mate;
+    } while (hep != startHalfEdge && hep != NULL);
+
+    // Update the normal of the target vertex
+    mesh->AssignVertexNormal(v_target);
+
+    // Update normals of adjacent vertices
+    hep = startHalfEdge;
+    do {
+        mesh->AssignVertexNormal(hep->next->vertex);
+        if (hep->prev->mate == NULL) {
+            mesh->AssignVertexNormal(hep->prev->vertex);
+            break;
+        }
+        hep = hep->prev->mate;
+    } while (hep != startHalfEdge);
+}
+
 
 
 //Actual Functions ----------------------
@@ -685,11 +716,125 @@ bool Simplification::EdgeCollapse() {
 
 //-----------------------------------------------------------------
 
-//------------Mesh Simplification: Collapsing an Edge-------------------------------------
+//------------Mesh Simplification: Restoring an Edge-------------------------------------
 
 void Simplification::VertexSplit() {
-    std::cerr << "Vertex Split called!" << std::endl;
+    if(vertexSplitTarget.empty() == false){
+
+        //Identifying one of the half-edge from the edge that was collapsed
+        HalfEdge *hepCollapsed = vertexSplitTarget.top().ei->halfedge[0];
+
+        //Start and end point of the half edge
+        VertexIter v0 = hepCollapsed->vertex; 
+        VertexIter v1 = hepCollapsed->next->vertex; 
+
+
+        // re-add edge collapse, no need to calculate anything since they were removed in order
+        readdedEdgeCollapseTarget.push( EdgeCollapseTarget(vertexSplitTarget.top().ei, -1.0f, v1->position_, -1) );
+
+        //Restoring the original coordinate
+        v1->position_ = vertexSplitTarget.top().v1OriginalCoord;
+        v1->isBoundary = vertexSplitTarget.top().v1OriginalIsBoundary;
+
+        //Edge restoration
+        //We only need to restore the previous and collapsed edge explicitly
+        //v1 was just just shifted in corrdinates but still have v1 to vx edge
+        hepCollapsed->edge->isActive = true;
+
+        FaceIter currentFace = hepCollapsed->face;
+        currentFace->isActive = true;
+        n_active_faces++;
+
+        //Ensuring the theoretical consistancy for mate and mate's
+        if(hepCollapsed->next->mate != NULL) hepCollapsed->next->mate->mate = hepCollapsed->next;
+        if(hepCollapsed->prev->mate != NULL) hepCollapsed->prev->mate->mate = hepCollapsed->prev;
+
+        //Restoring the previous edge
+        hepCollapsed->prev->edge->isActive = true;
+
+        if(hepCollapsed->next->edge->halfedge[0] == hepCollapsed->next->mate) 
+            hepCollapsed->next->edge->halfedge[1] = hepCollapsed->next;
+        else                 
+            hepCollapsed->next->edge->halfedge[0] = hepCollapsed->next;
+  
+        //Restoring Face's vertex half edge connection
+        for(int i = 0; i < 3; i++){
+            currentFace->halfedge[i].vertex->neighborHe = &(currentFace->halfedge[i]);
+        }
+
+        //If half edge collapsed has a mate i.e. not boundary then restore the face of mate as well
+        if(hepCollapsed->mate != NULL){
+            FaceIter oppositeFace = hepCollapsed->mate->face;
+
+            oppositeFace->isActive = true;
+            n_active_faces++;
+
+            if(hepCollapsed->mate->next->mate != NULL) hepCollapsed->mate->next->mate->mate = hepCollapsed->mate->next;
+            if(hepCollapsed->mate->prev->mate != NULL) hepCollapsed->mate->prev->mate->mate = hepCollapsed->mate->prev;
+
+            hepCollapsed->mate->prev->edge->isActive = true;
+
+            if(hepCollapsed->mate->prev->edge->halfedge[0] == hepCollapsed->mate->prev->mate) 
+                hepCollapsed->mate->prev->edge->halfedge[1] = hepCollapsed->mate->prev;
+            else                 
+                hepCollapsed->mate->prev->edge->halfedge[0] = hepCollapsed->mate->prev;
+
+            for(int i = 0; i < 3; i++){
+                oppositeFace->halfedge[i].vertex->neighborHe = &(oppositeFace->halfedge[i]);
+            }
+
+        }
+
+        //Restoring the halfedges for v0
+        for(size_t i = 0; i < vertexSplitTarget.top().halfedgesAroundV0.size(); i++){
+            HalfEdge *hep = vertexSplitTarget.top().halfedgesAroundV0[i];
+            hep->vertex = v0;
+        }
+
+
+        //Restoring normal vectors
+        for(int i = 0; i < 2; i++){
+            VertexIter v_target;
+
+            if(i == 0) v_target = v0;
+            else       v_target = v1;
+
+            HalfEdge *startHalfEdge;
+
+            if(v_target->isBoundary == false) startHalfEdge = v_target->neighborHe;
+            else                              startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(v_target->neighborHe);
+
+            // update cost and optimal vertex coordinate of incident edges, and normals of incident faces, and incident vertices' neighborHe;
+            HalfEdge *hep = startHalfEdge;
+            do{
+                mesh->AssignFaceNormal(hep->face);
+
+                hep = hep->prev->mate;
+            }while(hep != startHalfEdge && hep != NULL);
+
+            mesh->AssignVertexNormal(v_target);
+
+            hep = startHalfEdge;
+            do{
+                mesh->AssignVertexNormal(hep->next->vertex);
+
+                if(hep->prev->mate == NULL){ 
+                    mesh->AssignVertexNormal(hep->prev->vertex);
+                    break;   
+                }
+
+                hep = hep->prev->mate;
+            } while(hep != startHalfEdge);
+
+        }
+        vertexSplitTarget.pop();
+        
+    } else {
+        std::cerr << "Nothing to restore\n";
+    }
 }
+
+//-----------------------------------------------------------------  
 
 void Simplification::ControlLevelOfDetail(int step)
 {
@@ -702,8 +847,11 @@ void Simplification::ControlLevelOfDetail(int step)
             if(EdgeCollapse() == false) break;
             std::cerr << n_active_faces << std::endl;
         } 
-    }/*else if(n_target_faces > n_active_faces){
-        while(n_target_faces > n_active_faces) VertexSplit();
-    }*/
+    }else if(n_target_faces > n_active_faces){
+        while(n_target_faces > n_active_faces) {
+            VertexSplit();
+            std::cerr << n_active_faces << std::endl;
+        } 
+    }
 
 }
