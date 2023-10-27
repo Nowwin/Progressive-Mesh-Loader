@@ -465,6 +465,8 @@ void Simplification::FindNeighborHalfEdge(VertexIter &v1, std::vector<FaceIter> 
 void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFirstCollapse)
 {
     HalfEdge *hepCollapse = ei->halfedge[0];
+    //std::cerr << ei->halfedge[0]->edge->id << std::endl;
+    //std::cerr << ei->halfedge[1]->edge->id << std::endl;
     HalfEdge *startHalfEdge = nullptr;
     HalfEdge * hep = startHalfEdge;
 
@@ -579,6 +581,9 @@ void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFir
     // Updating the Normals
     mesh->AssignVertexNormal(v1);
 
+    //std::cerr << ei->halfedge[0]->edge->id << std::endl;
+    //std::cerr << ei->halfedge[1]->edge->id << std::endl;
+
     hep = startHalfEdge;
     do{
         mesh->AssignVertexNormal(hep->next->vertex);
@@ -591,6 +596,8 @@ void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFir
         hep = hep->prev->mate;
     }while(hep != startHalfEdge);
 
+    //std::cerr << ei->halfedge[0]->edge->id << std::endl;
+    //std::cerr << ei->halfedge[1]->edge->id << std::endl;
 }
 
 
@@ -679,6 +686,72 @@ void Simplification::UpdateNormalsAroundVertex(VertexIter &v_target) {
 }
 
 
+//Error checking
+
+bool isValidLoop(HalfEdge* startHalfEdge) {
+    HalfEdge* currentHalfEdge = startHalfEdge;
+    const int MAX_COUNT = 10;  // assuming triangular faces for simplicity
+    int count = 0;
+
+    do {
+        if (currentHalfEdge->next->prev != currentHalfEdge) return false;
+        if (currentHalfEdge->prev->next != currentHalfEdge) return false;
+
+        currentHalfEdge = currentHalfEdge->next;
+        count++;
+    } while (currentHalfEdge != startHalfEdge && count < MAX_COUNT);
+
+    return currentHalfEdge == startHalfEdge;
+}
+
+bool validateMesh(Mesh* mesh) {
+    
+
+    // Validate half-edges
+    for (EdgeIter ei = mesh->edges.begin(); ei != mesh->edges.end(); ++ei) {
+        if (ei->halfedge[0] == nullptr || !isValidLoop(ei->halfedge[0])) {
+            std::cerr << "Half Edge issue" << std::endl;
+            return false;
+        }
+        if (ei->halfedge[1] != nullptr && !isValidLoop(ei->halfedge[1])) {
+            std::cerr << "Half Edge Mate issue" << std::endl;
+            return false;
+        }
+    }
+
+    // Validate edges
+    for (EdgeIter ei = mesh->edges.begin(); ei != mesh->edges.end(); ++ei) {
+        if (ei->isActive && (&(*(ei->halfedge[0]->edge)) != &(*ei))) {
+            std::cerr << ei->halfedge[0]->edge->id << std::endl;
+            std::cerr << ei->halfedge[1]->edge->id << std::endl;
+            std::cerr << ei->id << std::endl;
+
+            std::cerr << "Half Edge in Edge issue" << std::endl;
+            return false;
+        } 
+        if (ei->isActive && ei->halfedge[1] != nullptr && (&(*ei->halfedge[1]->edge)) != &(*ei)) {
+            std::cerr << ei->halfedge[0]->edge->id << std::endl;
+            std::cerr << ei->halfedge[1]->edge->id << std::endl;
+            std::cerr << ei->id << std::endl;
+            std::cerr << "Half Edge Mate in Edge issue" << std::endl;
+            return false;
+        }
+    }
+
+    // Validate faces
+    for (FaceIter fi = mesh->faces.begin(); fi != mesh->faces.end(); ++fi) {
+        for (int i = 0; i < 3; ++i) {
+            if (!isValidLoop(&fi->halfedge[i])) {
+                std::cerr << "Face issue" << std::endl;
+                return false;
+            } 
+        }
+    }
+
+    return true;
+}
+
+
 
 //Actual Functions ----------------------
 
@@ -724,6 +797,11 @@ void Simplification::VertexSplit() {
         //Identifying one of the half-edge from the edge that was collapsed
         HalfEdge *hepCollapsed = vertexSplitTarget.top().ei->halfedge[0];
 
+        //std::cerr << vertexSplitTarget.top().ei->halfedge[0]->edge->id << std::endl;
+        //std::cerr << vertexSplitTarget.top().ei->halfedge[1]->edge->id << std::endl;
+        //std::cerr << hepCollapsed->edge->id << std::endl;
+        //std::cerr << hepCollapsed->prev->edge->id << std::endl;
+        //std::cerr << hepCollapsed->prev->mate->edge->id << std::endl;
         //Start and end point of the half edge
         VertexIter v0 = hepCollapsed->vertex; 
         VertexIter v1 = hepCollapsed->next->vertex; 
@@ -746,16 +824,41 @@ void Simplification::VertexSplit() {
         n_active_faces++;
 
         //Ensuring the theoretical consistancy for mate and mate's
-        if(hepCollapsed->next->mate != NULL) hepCollapsed->next->mate->mate = hepCollapsed->next;
-        if(hepCollapsed->prev->mate != NULL) hepCollapsed->prev->mate->mate = hepCollapsed->prev;
+        if(hepCollapsed->next->mate != NULL) {
+            hepCollapsed->next->mate->mate = hepCollapsed->next;
+            hepCollapsed->next->mate->edge = hepCollapsed->next->edge;
+        } 
+        if(hepCollapsed->prev->mate != NULL) {
+            hepCollapsed->prev->mate->mate = hepCollapsed->prev;
+            hepCollapsed->prev->mate->edge = hepCollapsed->prev->edge;
+        } 
 
         //Restoring the previous edge
         hepCollapsed->prev->edge->isActive = true;
+        
 
         if(hepCollapsed->next->edge->halfedge[0] == hepCollapsed->next->mate) 
             hepCollapsed->next->edge->halfedge[1] = hepCollapsed->next;
-        else                 
+        else {
             hepCollapsed->next->edge->halfedge[0] = hepCollapsed->next;
+            /*if (hepCollapsed->next->edge->halfedge[1] != nullptr)
+            {
+                hepCollapsed->next->edge->halfedge[1] = hepCollapsed->next->mate;
+            }*/
+            
+        } 
+
+        if(hepCollapsed->prev->edge->halfedge[0] == hepCollapsed->prev->mate) 
+            hepCollapsed->prev->edge->halfedge[1] = hepCollapsed->prev;
+        else {
+            hepCollapsed->prev->edge->halfedge[0] = hepCollapsed->prev;
+            if (hepCollapsed->prev->edge->halfedge[1] != nullptr)
+            {
+                hepCollapsed->prev->edge->halfedge[1] = hepCollapsed->prev->mate;
+            }
+            
+        }                 
+            
   
         //Restoring Face's vertex half edge connection
         for(int i = 0; i < 3; i++){
@@ -769,15 +872,37 @@ void Simplification::VertexSplit() {
             oppositeFace->isActive = true;
             n_active_faces++;
 
-            if(hepCollapsed->mate->next->mate != NULL) hepCollapsed->mate->next->mate->mate = hepCollapsed->mate->next;
-            if(hepCollapsed->mate->prev->mate != NULL) hepCollapsed->mate->prev->mate->mate = hepCollapsed->mate->prev;
+            if(hepCollapsed->mate->next->mate != NULL) {
+                hepCollapsed->mate->next->mate->mate = hepCollapsed->mate->next;
+                hepCollapsed->mate->next->mate->edge = hepCollapsed->mate->next->edge;
+            } 
+            if(hepCollapsed->mate->prev->mate != NULL) {
+                hepCollapsed->mate->prev->mate->mate = hepCollapsed->mate->prev;
+                hepCollapsed->mate->prev->mate->edge = hepCollapsed->mate->prev->edge;
+            } 
 
             hepCollapsed->mate->prev->edge->isActive = true;
 
             if(hepCollapsed->mate->prev->edge->halfedge[0] == hepCollapsed->mate->prev->mate) 
                 hepCollapsed->mate->prev->edge->halfedge[1] = hepCollapsed->mate->prev;
-            else                 
+            else {
                 hepCollapsed->mate->prev->edge->halfedge[0] = hepCollapsed->mate->prev;
+                /*if (hepCollapsed->mate->prev->edge->halfedge[1] != nullptr)
+                {
+                    hepCollapsed->mate->prev->edge->halfedge[1] = hepCollapsed->mate->prev->mate;
+                }*/
+            }
+
+            if(hepCollapsed->mate->next->edge->halfedge[0] == hepCollapsed->mate->next->mate) 
+                hepCollapsed->mate->next->edge->halfedge[1] = hepCollapsed->mate->next;
+            else {
+                hepCollapsed->mate->next->edge->halfedge[0] = hepCollapsed->mate->next;
+                /*if (hepCollapsed->mate->prev->edge->halfedge[1] != nullptr)
+                {
+                    hepCollapsed->mate->prev->edge->halfedge[1] = hepCollapsed->mate->prev->mate;
+                }*/
+            }                  
+                
 
             for(int i = 0; i < 3; i++){
                 oppositeFace->halfedge[i].vertex->neighborHe = &(oppositeFace->halfedge[i]);
@@ -793,40 +918,13 @@ void Simplification::VertexSplit() {
 
 
         //Restoring normal vectors
-        for(int i = 0; i < 2; i++){
-            VertexIter v_target;
+        UpdateNormalsAroundVertex(v0);
+        UpdateNormalsAroundVertex(v1);
 
-            if(i == 0) v_target = v0;
-            else       v_target = v1;
+        //std::cerr << vertexSplitTarget.top().ei->halfedge[0]->edge->id << std::endl;
+        //std::cerr << vertexSplitTarget.top().ei->halfedge[1]->edge->id << std::endl;
+        //std::cerr << hepCollapsed->edge->id << std::endl;
 
-            HalfEdge *startHalfEdge;
-
-            if(v_target->isBoundary == false) startHalfEdge = v_target->neighborHe;
-            else                              startHalfEdge = FindBoundaryEdgeIncidentToVertexInCW(v_target->neighborHe);
-
-            // update cost and optimal vertex coordinate of incident edges, and normals of incident faces, and incident vertices' neighborHe;
-            HalfEdge *hep = startHalfEdge;
-            do{
-                mesh->AssignFaceNormal(hep->face);
-
-                hep = hep->prev->mate;
-            }while(hep != startHalfEdge && hep != NULL);
-
-            mesh->AssignVertexNormal(v_target);
-
-            hep = startHalfEdge;
-            do{
-                mesh->AssignVertexNormal(hep->next->vertex);
-
-                if(hep->prev->mate == NULL){ 
-                    mesh->AssignVertexNormal(hep->prev->vertex);
-                    break;   
-                }
-
-                hep = hep->prev->mate;
-            } while(hep != startHalfEdge);
-
-        }
         vertexSplitTarget.pop();
         
     } else {
@@ -839,19 +937,33 @@ void Simplification::VertexSplit() {
 void Simplification::ControlLevelOfDetail(int step)
 {
     int n_target_faces = mesh->n_faces*pow(0.95, step);
+    /*int n_target_faces = mesh->n_faces;
+
+    if (step >= 5)
+    {
+        n_target_faces -= 2;   
+    }*/
+    
 
     std::cerr << "step " << step << " " << n_target_faces << " " << mesh->n_faces << std::endl;
 
     if(n_target_faces < n_active_faces){
         while(n_target_faces < n_active_faces) {
             if(EdgeCollapse() == false) break;
-            std::cerr << n_active_faces << std::endl;
+            //std::cerr << n_active_faces << std::endl;
         } 
     }else if(n_target_faces > n_active_faces){
         while(n_target_faces > n_active_faces) {
             VertexSplit();
-            std::cerr << n_active_faces << std::endl;
+            //std::cerr << n_active_faces << std::endl;
         } 
     }
+
+    std::cerr << "Current Active Faces: " << n_active_faces << std::endl;
+    if (!validateMesh(this->mesh))
+    {
+        std::cerr << "Mesh is not valid!\n";
+    }
+    
 
 }

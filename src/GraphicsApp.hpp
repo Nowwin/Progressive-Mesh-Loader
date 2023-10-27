@@ -45,6 +45,7 @@ private:
     void GetOpenGLVersionInfo();
     void IntializeProgram();
     void VertexSpecification();
+    void ReVertexSpecification();
     void LoadShaders();
     void Input();
     void PreDraw();

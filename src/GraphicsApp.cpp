@@ -2,9 +2,13 @@
 
 
 int GNumberOfVertices = 0;
+int GLevelOfDetail = 0;
 bool wireframeMode = false;
+size_t currentVBOSize = 0;
+size_t currentIndexBOSize = 0;
 
 Mesh bunny = Mesh();
+Simplification meshResoncstruct = Simplification();
 
 // Camera
 Camera gCamera;
@@ -70,11 +74,12 @@ void GraphicsApp::VertexSpecification() {
     
     char filename[] = "./src/ObjFiles/ver1.obj";
     bunny.ConstructMeshDataStructure(filename);
-    Simplification simple = Simplification();
-    simple.InitSimplification(&bunny);
-    simple.ControlLevelOfDetail(50);
-    simple.ControlLevelOfDetail(40);
-    Mesh* bunnyModified = simple.GetModifiedMesh();
+    meshResoncstruct.InitSimplification(&bunny);
+    Mesh* bunnyModified = meshResoncstruct.GetModifiedMesh();
+    if (!validateMesh(bunnyModified))
+    {
+        std::cerr << "Mesh is not initilized properly!\n";
+    }
     const std::vector<GLfloat> vertexData(bunnyModified->GetVertexData());
 
     glGenVertexArrays(1, &gVertexArrayObject);
@@ -83,17 +88,19 @@ void GraphicsApp::VertexSpecification() {
 
     glGenBuffers(1, &gVertexBufferObject);
     glBindBuffer(GL_ARRAY_BUFFER, gVertexBufferObject);
-    glBufferData(GL_ARRAY_BUFFER, vertexData.size() * sizeof(GLfloat), vertexData.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertexData.size() * sizeof(GLfloat), vertexData.data(), GL_DYNAMIC_DRAW);
 
-   
+    currentVBOSize = vertexData.size() * sizeof(GLfloat);
 
     const std::vector<GLuint> indexBufferData(bunnyModified->GetIndexData());
 
     GNumberOfVertices = indexBufferData.size();
+
+    currentIndexBOSize = indexBufferData.size() * sizeof(GLuint);
                                                 
     glGenBuffers(1, &gIndexBufferObject);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIndexBufferObject);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexBufferData.size() * sizeof(GLuint), indexBufferData.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexBufferData.size() * sizeof(GLuint), indexBufferData.data(), GL_DYNAMIC_DRAW);
 
 
     glEnableVertexAttribArray(0);
@@ -107,6 +114,45 @@ void GraphicsApp::VertexSpecification() {
     glDisableVertexAttribArray(1);
     
 }
+
+void GraphicsApp::ReVertexSpecification() {
+    meshResoncstruct.ControlLevelOfDetail(GLevelOfDetail);
+    Mesh* bunnyModified = meshResoncstruct.GetModifiedMesh();
+    const std::vector<GLfloat> vertexData(bunnyModified->GetVertexData());
+
+    glBindVertexArray(gVertexArrayObject);
+    glBindBuffer(GL_ARRAY_BUFFER, gVertexBufferObject);
+
+    size_t newSizeVBO = vertexData.size() * sizeof(GLfloat);
+    if (newSizeVBO > currentVBOSize) {
+        glBufferData(GL_ARRAY_BUFFER, newSizeVBO, vertexData.data(), GL_DYNAMIC_DRAW);
+        currentVBOSize = newSizeVBO;
+    } else {
+        glBufferData(GL_ARRAY_BUFFER, currentVBOSize, nullptr, GL_DYNAMIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, newSizeVBO, vertexData.data());
+    }
+
+    const std::vector<GLuint> indexBufferData(bunnyModified->GetIndexData());
+    GNumberOfVertices = indexBufferData.size();
+
+    size_t newSizeIBO = indexBufferData.size() * sizeof(GLuint);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gIndexBufferObject);
+    if (newSizeIBO > currentIndexBOSize) {
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, newSizeIBO, indexBufferData.data(), GL_DYNAMIC_DRAW);
+        currentIndexBOSize = newSizeIBO;
+    } else {
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, currentIndexBOSize, nullptr, GL_DYNAMIC_DRAW);
+        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, newSizeIBO, indexBufferData.data());
+    }
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GL_FLOAT) * 6, (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(GL_FLOAT) * 6, (GLvoid*)(sizeof(GL_FLOAT)*3));
+
+    glBindVertexArray(0);
+}
+
 
 void GraphicsApp::LoadShaders() {
     std::string vertexShaderSource = ShaderLoader::LoadShaderAsString(std::filesystem::current_path().string() + "/shaders/vert.glsl");
@@ -164,6 +210,25 @@ void GraphicsApp::Input(){
                         printf("W key pressed!\n");
                         wireframeMode = !wireframeMode;
                         break;
+                    case SDLK_i:
+                        // Handle 'W' key press here
+                        printf("I key pressed!\n");
+                        GLevelOfDetail += 5;
+                        ReVertexSpecification();
+                        SDL_Delay(200);
+                        break;
+                    case SDLK_d:
+                        // Handle 'W' key press here
+                        printf("D key pressed!\n");
+                        GLevelOfDetail -= 5;
+                        if (GLevelOfDetail < 0)
+                        {
+                            GLevelOfDetail = 0;
+                        }
+                        
+                        ReVertexSpecification();
+                        SDL_Delay(200);
+                        break;     
                     default:
                         break;
             

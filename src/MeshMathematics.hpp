@@ -78,3 +78,4 @@ public:
 };
 
 
+bool validateMesh(Mesh* mesh);
