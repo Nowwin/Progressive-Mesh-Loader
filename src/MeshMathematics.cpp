@@ -365,6 +365,7 @@ void Simplification::ReplaceVerticesOfHalfEdges(VertexIter &v0, VertexIter &v1) 
     do {
         if(hep->face->isActive) {
             hep->vertex = v1;
+            vertexSplitTarget.top().halfedgesAroundV0.push_back(hep);
         }
 
         if(hep->prev->mate == NULL) break;
@@ -472,6 +473,10 @@ void Simplification::RemoveEdge(EdgeIter &ei, glm::vec3 optimalCoord, bool isFir
 
     VertexIter v0 = hepCollapse->vertex;
     VertexIter v1 = hepCollapse->next->vertex;
+
+    //std::cout << "Positions to collapse:\n" << std::endl;
+    //std::cout << v0->position_.x << ", " << v0->position_.y << ", " << v0->position_.z << std::endl;
+    //std::cout << v1->position_.x << ", " << v1->position_.y << ", " << v1->position_.z << std::endl; 
    
     InactivateFaces(hepCollapse);
     StoreVertexSplit(ei, v0, v1);
@@ -806,6 +811,12 @@ void Simplification::VertexSplit() {
         VertexIter v0 = hepCollapsed->vertex; 
         VertexIter v1 = hepCollapsed->next->vertex; 
 
+        //std::cout << "Positions to restore:\n" << std::endl;
+        //std::cout << v0->position_.x << ", " << v0->position_.y << ", " << v0->position_.z << std::endl;
+        //std::cout << v1->position_.x << ", " << v1->position_.y << ", " << v1->position_.z << std::endl;
+        //std::cout << "Orginal Position to restore:\n" << std::endl; 
+        //std::cout << vertexSplitTarget.top().v1OriginalCoord.x << ", " << vertexSplitTarget.top().v1OriginalCoord.y
+        // << ", " << vertexSplitTarget.top().v1OriginalCoord.z << std::endl;
 
         // re-add edge collapse, no need to calculate anything since they were removed in order
         readdedEdgeCollapseTarget.push( EdgeCollapseTarget(vertexSplitTarget.top().ei, -1.0f, v1->position_, -1) );
@@ -912,6 +923,7 @@ void Simplification::VertexSplit() {
 
         //Restoring the halfedges for v0
         for(size_t i = 0; i < vertexSplitTarget.top().halfedgesAroundV0.size(); i++){
+            //std::cout << "Does this run\n";
             HalfEdge *hep = vertexSplitTarget.top().halfedgesAroundV0[i];
             hep->vertex = v0;
         }
